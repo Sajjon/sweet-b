@@ -88,20 +88,57 @@ static inline void sb_sha256_word_set(sb_byte_t p[static const sizeof
     p[3] = (sb_byte_t) w;
 }
 
-#define W_HOP(W, n) do { (W)[(n)] = (W)[(n) + 1]; } while (0)
+#define W_HOP_1(W) do { (W)[0] = (W)[1]; } while (0)
+
+#if defined(__ARM_ARCH) && __ARM_ARCH >= 6
+#define W_HOP(W) do { \
+    register uint32_t a, b; \
+    (W)++; \
+    __asm("ldrd %0, %1, [%2], #8\n\t" \
+          : "=r" (a), "=r" (b), "+r" (W) : ); \
+    __asm("strd %0, %1, [%2, #-12]" \
+         : : "r" (a), "r" (b), "r" (W)); \
+    (W)--; \
+} while (0)
+#else
+#define W_HOP(W) do { \
+    uint32_t a, b; \
+    a = (W)[1]; b = (W)[2]; \
+    (W)[0] = a; (W)[1] = b; \
+    (W) += 2; \
+} while (0)
+#endif
 
 #define W_SHIFT(W) do { \
-    W_HOP(W,  0); W_HOP(W,  1); W_HOP(W,  2); W_HOP(W,  3); \
-    W_HOP(W,  4); W_HOP(W,  5); W_HOP(W,  6); W_HOP(W,  7); \
-    W_HOP(W,  8); W_HOP(W,  9); W_HOP(W, 10); W_HOP(W, 11); \
-    W_HOP(W, 12); W_HOP(W, 13); W_HOP(W, 14); \
+    uint32_t* j = (W); \
+    W_HOP(j); W_HOP(j);  \
+    W_HOP(j); W_HOP(j);  \
+    W_HOP(j); W_HOP(j); \
+    W_HOP(j); W_HOP_1(j); \
 } while (0)
 
-#define A_H_HOP(a_h, i) do { (a_h)[(i) + 1] = (a_h)[(i)]; } while (0)
+#define A_H_HOP_1(a_h) do { (a_h)[1] = (a_h)[0]; (a_h)--; } while (0)
+
+#if defined(__ARM_ARCH) && __ARM_ARCH >= 6
+#define A_H_HOP(a_h) do { \
+    register uint32_t a, b; \
+    (a_h)--; \
+    __asm("ldrd %0, %1, [%2], #-8\n\t" \
+          : "=r" (a), "=r" (b), "+r" (a_h) : ); \
+    __asm("strd %0, %1, [%2, #12]" \
+         : : "r" (a), "r" (b), "r" (a_h)); \
+    (a_h)++; \
+} while (0)
+#else
+#define A_H_HOP(a_h) do { \
+    A_H_HOP_1(a_h); A_H_HOP_1(a_h); \
+} while (0)
+#endif
 
 #define A_H_SHIFT(a_h) do { \
-    A_H_HOP(a_h, 6); A_H_HOP(a_h, 5); A_H_HOP(a_h, 4); A_H_HOP(a_h, 3); \
-    A_H_HOP(a_h, 2); A_H_HOP(a_h, 1); A_H_HOP(a_h, 0); \
+    uint32_t* j = (a_h) + 6; \
+    A_H_HOP(j); A_H_HOP(j); \
+    A_H_HOP(j); A_H_HOP_1(j); \
 } while (0)
 
 static void sb_sha256_process_block
