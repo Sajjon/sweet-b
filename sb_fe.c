@@ -45,7 +45,7 @@ void sb_fe_from_bytes(sb_fe_t dest[static const 1],
 }
 
 void sb_fe_to_bytes(sb_byte_t dest[static const SB_ELEM_BYTES],
-                    const sb_fe_t src[static const 1] ,
+                    const sb_fe_t src[static const 1],
                     const sb_data_endian_t e)
 {
     sb_wordcount_t dest_i = 0;
@@ -80,13 +80,13 @@ static inline sb_word_t sb_ctc_word(sb_word_t a, sb_word_t b, sb_word_t c)
     return (sb_word_t) ((sb_word_mask(a) & (b ^ c)) ^ b);
 }
 
-sb_word_t sb_fe_equal(const sb_fe_t left[static const 1] ,
-                      const sb_fe_t right[static const 1] )
+sb_word_t sb_fe_equal(const sb_fe_t left[static const 1],
+                      const sb_fe_t right[static const 1])
 {
     sb_word_t r = 0;
-    for (size_t i = 0; i < SB_FE_WORDS; i++) {
+    SB_UNROLL_WORDS_2(i, 0, {
         r |= SB_FE_WORD(left, i) ^ SB_FE_WORD(right, i);
-    }
+    });
     // r | -r has bit SB_WORD_BITS - 1 set if r is nonzero
     // v ^ 1 is logical negation
     return ((r | ((sb_word_t) -r)) >> (sb_word_t) (SB_WORD_BITS - 1)) ^
@@ -94,7 +94,8 @@ sb_word_t sb_fe_equal(const sb_fe_t left[static const 1] ,
 }
 
 // Returns 1 if the bit is set, 0 otherwise
-sb_word_t sb_fe_test_bit(const sb_fe_t a[static const 1], const sb_bitcount_t bit)
+sb_word_t
+sb_fe_test_bit(const sb_fe_t a[static const 1], const sb_bitcount_t bit)
 {
     size_t word = bit >> SB_WORD_BITS_SHIFT;
     return (SB_FE_WORD(a, word) & ((sb_word_t) 1 << (bit & SB_WORD_BITS_MASK)))
@@ -142,27 +143,29 @@ static void sb_fe_rshift(sb_fe_t a[static const 1], sb_bitcount_t bits)
 #endif
 
 // dest MAY alias left or right
-sb_word_t sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
-                    const sb_fe_t right[static const 1])
+sb_word_t
+sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
+          const sb_fe_t right[static const 1])
 {
     sb_word_t carry = 0;
-    for (size_t i = 0; i < SB_FE_WORDS; i++) {
+    SB_UNROLL_WORDS_2(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) +
                        (sb_dword_t) SB_FE_WORD(right, i) +
                        (sb_dword_t) carry;
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         carry = (sb_word_t) (d >> SB_WORD_BITS);
-    }
+    });
     return carry;
 }
 
 // adds b or c to dest, depending on a
 static void
 sb_fe_ctc_add_carry(sb_fe_t dest[static const 1], const sb_word_t a,
-                    const sb_fe_t b[static const 1], const sb_fe_t c[static const 1],
+                    const sb_fe_t b[static const 1],
+                    const sb_fe_t c[static const 1],
                     sb_word_t carry)
 {
-    for (size_t i = 0; i < SB_FE_WORDS; i++) {
+    SB_UNROLL_WORDS_2(i, 0, {
         sb_dword_t d =
             (sb_dword_t) SB_FE_WORD(dest, i) +
             (sb_dword_t) sb_ctc_word(a, SB_FE_WORD(b, i),
@@ -170,7 +173,7 @@ sb_fe_ctc_add_carry(sb_fe_t dest[static const 1], const sb_word_t a,
             (sb_dword_t) carry;
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         carry = (sb_word_t) (d >> SB_WORD_BITS);
-    }
+    });
 }
 
 // dest MAY alias left or right
@@ -179,13 +182,13 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static const 1],
                                   const sb_fe_t right[static const 1],
                                   sb_word_t borrow)
 {
-    for (size_t i = 0; i < SB_FE_WORDS; i++) {
+    SB_UNROLL_WORDS_2(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
                        ((sb_dword_t) SB_FE_WORD(right, i) +
                         (sb_dword_t) borrow);
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
-    }
+    });
     return borrow;
 }
 
@@ -196,15 +199,16 @@ sb_word_t sb_fe_sub(sb_fe_t dest[static const 1],
     return sb_fe_sub_borrow(dest, left, right, 0);
 }
 
-sb_word_t sb_fe_lt(const sb_fe_t left[static const 1], const sb_fe_t right[static const 1])
+sb_word_t sb_fe_lt(const sb_fe_t left[static const 1],
+                   const sb_fe_t right[static const 1])
 {
     sb_word_t borrow = 0;
-    for (size_t i = 0; i < SB_FE_WORDS; i++) {
+    SB_UNROLL_WORDS_2(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
                        ((sb_dword_t) SB_FE_WORD(right, i) +
                         (sb_dword_t) borrow);
         borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
-    }
+    });
     return borrow;
 }
 
@@ -240,9 +244,10 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static const 1], sb_word_t const c,
 // left and right may differ by no more than the modulus, so the final addition
 // of p+1 will produce output between 1 and p, inclusive.
 
-void sb_fe_mod_sub(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
-                   const sb_fe_t right[static const 1],
-                   const sb_prime_field_t p[static const 1])
+void
+sb_fe_mod_sub(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
+              const sb_fe_t right[static const 1],
+              const sb_prime_field_t p[static const 1])
 {
     sb_word_t b = sb_fe_sub_borrow(dest, left, right, 1);
     sb_fe_cond_add_p_1(dest, b, p);
@@ -257,9 +262,10 @@ void sb_fe_mod_sub(sb_fe_t dest[static const 1], const sb_fe_t left[static const
 // the subtraction of P + 1 will overflow, and P + 1 will be added back
 // to the result, producing P.
 
-void sb_fe_mod_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
-                   const sb_fe_t right[static const 1],
-                   const sb_prime_field_t p[static const 1])
+void
+sb_fe_mod_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
+              const sb_fe_t right[static const 1],
+              const sb_prime_field_t p[static const 1])
 {
     sb_word_t c = sb_fe_add(dest, left, right);
     sb_word_t b = sb_fe_sub_borrow(dest, dest, &p->p, 1);
@@ -272,7 +278,8 @@ void sb_fe_mod_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const
               "modular addition must always produce quasi-reduced output");
 }
 
-void sb_fe_mod_double(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
+void sb_fe_mod_double(sb_fe_t dest[static const 1],
+                      const sb_fe_t left[static const 1],
                       const sb_prime_field_t p[static const 1])
 {
     sb_fe_mod_add(dest, left, left, p);
@@ -304,6 +311,10 @@ void sb_test_fe(void)
 
 #endif
 
+typedef struct sb_carry_pair_t {
+    sb_word_t c, c2;
+} sb_carry_pair_t;
+
 static inline void sb_mult_add_add(sb_word_t h[static const 1],
                                    sb_word_t l[static const 1],
                                    const sb_word_t a,
@@ -311,50 +322,29 @@ static inline void sb_mult_add_add(sb_word_t h[static const 1],
                                    const sb_word_t c,
                                    const sb_word_t d)
 {
+#if defined(__ARM_FEATURE_DSP) && SB_MUL_SIZE == 4
+    register int h_dest = c;
+    register int l_dest = d;
+    __asm("umaal %0, %1, %2, %3" : "+r" (l_dest), "+r" (h_dest) : "r" (a), "r" (b));
+    *h = h_dest;
+    *l = l_dest;
+#else
     const sb_dword_t t =
         ((sb_dword_t) a * (sb_dword_t) b) + (sb_dword_t) c + (sb_dword_t) d;
     *h = (sb_word_t) (t >> (SB_WORD_BITS));
     *l = (sb_word_t) t;
+#endif
 }
 
-static inline sb_word_t sb_fe_mont_mult_b(sb_fe_t A[static const restrict 1],
-                                          const sb_fe_t y[static const
-                                          restrict 1],
-                                          sb_word_t const hw,
-                                          sb_dword_t const A_0_plus_x_i_y_0,
-                                          sb_word_t const u_i,
-                                          sb_word_t const x_i,
-                                          const sb_prime_field_t p[static const 1])
+static inline void sb_add_carry_2(sb_word_t h[static const 1],
+                                  sb_word_t l[static const 1],
+                                  const sb_word_t a,
+                                  const sb_word_t b,
+                                  const sb_word_t c)
 {
-    SB_FE_WORD(A, 0) = (sb_word_t) A_0_plus_x_i_y_0;
-    sb_word_t c = (sb_word_t) (A_0_plus_x_i_y_0 >> SB_WORD_BITS);
-
-    sb_word_t c2 = (sb_word_t)
-        ((((sb_dword_t) SB_FE_WORD(A, 0)) +
-          ((sb_dword_t) u_i * (sb_dword_t) SB_FE_WORD(&p->p, 0)))
-            >> SB_WORD_BITS);
-
-    for (size_t j = 1; j < SB_FE_WORDS; j++) {
-        sb_word_t tmp;
-
-        // A = A + x_i * y
-        sb_mult_add_add(&c, &tmp,
-                        x_i,
-                        SB_FE_WORD(y, j),
-                        SB_FE_WORD(A, j), c);
-
-        // A = (A + u_i * m) / b
-        sb_mult_add_add(&c2, &SB_FE_WORD(A, j - 1), u_i,
-                        SB_FE_WORD(&p->p, j), tmp,
-                        c2);
-    }
-
-    const sb_dword_t hw_c = (sb_dword_t) hw + (sb_dword_t) c +
-                            (sb_dword_t) c2;
-
-    SB_FE_WORD(A, SB_FE_WORDS - 1) = (sb_word_t) hw_c;
-    return (sb_word_t) (hw_c >> SB_WORD_BITS);
-    // W + W * W + W * W overflows at most once
+    const sb_dword_t r = (sb_dword_t) a + (sb_dword_t) b + (sb_dword_t) c;
+    *h = (sb_word_t) (r >> SB_WORD_BITS);
+    *l = (sb_word_t) r;
 }
 
 void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
@@ -363,36 +353,46 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
                      const sb_prime_field_t p[static const 1])
 {
     *A = p->p; // 1. A = 0
-    const sb_dword_t y_0 = SB_FE_WORD(y, 0);
+    const sb_word_t y_0 = SB_FE_WORD(y, 0);
     sb_word_t hw = 0;
 
-    // This avoids one multiplication per inner-loop iteration for P256
-    if (p->p_mp == 1) {
-        for (size_t i = 0; i < SB_FE_WORDS; i++) { // for i from 0 to (n - 1)
-            // 2.1 u_i = (a_0 + x_i y_0) m' mod b
-            const sb_word_t x_i = SB_FE_WORD(x, i);
-            const sb_dword_t x_i_y_0 = x_i * y_0;
-            const sb_dword_t A_0_plus_x_i_y_0 =
-                SB_FE_WORD(A, 0) + x_i_y_0;
+    SB_UNROLL_WORDS_2(i, 0, { // for i from 0 to (n - 1)
+        // 2.1 u_i = (a_0 + x_i y_0) m' mod b
+        const sb_word_t x_i = SB_FE_WORD(x, i);
 
-            hw = sb_fe_mont_mult_b(A, y, hw, A_0_plus_x_i_y_0,
-                                   (sb_word_t) A_0_plus_x_i_y_0, x_i, p);
-        }
-    } else {
-        for (size_t i = 0; i < SB_FE_WORDS; i++) { // for i from 0 to (n - 1)
-            // 2.1 u_i = (a_0 + x_i y_0) m' mod b
-            const sb_word_t x_i = SB_FE_WORD(x, i);
-            const sb_dword_t x_i_y_0 = x_i * y_0;
-            const sb_dword_t A_0_plus_x_i_y_0 =
-                SB_FE_WORD(A, 0) + x_i_y_0;
-            const sb_word_t u_i =
-                (sb_word_t)
-                    (A_0_plus_x_i_y_0 *
-                     (sb_dword_t) p->p_mp);
+        sb_word_t c, c2;
+        sb_word_t A_0, tmp;
+        sb_mult_add_add(&c, &A_0, x_i, y_0, SB_FE_WORD(A, 0), 0);
 
-            hw = sb_fe_mont_mult_b(A, y, hw, A_0_plus_x_i_y_0, u_i, x_i, p);
-        }
-    }
+        const sb_word_t u_i =
+            (sb_word_t)
+                (A_0 *
+                    ((sb_dword_t) p->p_mp));
+
+        sb_mult_add_add(&c2, &tmp, u_i, SB_FE_WORD(&p->p, 0), A_0, 0);
+
+        SB_UNROLL_WORDS(j, 1, {
+            // A = A + x_i * y
+            sb_mult_add_add(&c, &SB_FE_WORD(A, j),
+                            x_i,
+                            SB_FE_WORD(y, j),
+                            SB_FE_WORD(A, j), c);
+
+        });
+
+        SB_UNROLL_WORDS(j, 1, {
+            // A = A + u_i * m
+            sb_mult_add_add(&c2, &SB_FE_WORD(A, j), u_i,
+                            SB_FE_WORD(&p->p, j), SB_FE_WORD(A, j),
+                            c2);
+        });
+
+        // A = A / b
+        SB_UNROLL_WORDS(j, 1, { SB_FE_WORD(A, j - 1) = SB_FE_WORD(A, j); });
+
+        sb_add_carry_2(&hw, &SB_FE_WORD(A, SB_FE_WORDS - 1), hw, c, c2);
+        SB_ASSERT(hw < 2, "W + W * W + W * W overflows at most once");
+    });
 
     // if A > m or the last iteration overflowed, subtract the modulus
     sb_word_t b = sb_fe_sub_borrow(A, A, &p->p, 1);
@@ -478,7 +478,8 @@ void sb_test_mont_mult(void)
 #endif
 
 // Swap `b` and `c if `a` is true.
-void sb_fe_ctswap(const sb_word_t a, sb_fe_t b[static const 1], sb_fe_t c[static const 1])
+void sb_fe_ctswap(const sb_word_t a, sb_fe_t b[static const 1],
+                  sb_fe_t c[static const 1])
 {
     for (size_t i = 0; i < SB_FE_WORDS; i++) {
         const sb_word_t t = sb_ctc_word(a, SB_FE_WORD(b, i), SB_FE_WORD(c, i));
@@ -489,36 +490,46 @@ void sb_fe_ctswap(const sb_word_t a, sb_fe_t b[static const 1], sb_fe_t c[static
 
 // x = x^e mod m
 
-static void sb_fe_mod_expt_r(sb_fe_t x[static const 1], const sb_fe_t e[static const 1],
-                             sb_fe_t t2[static const 1], sb_fe_t t3[static const 1],
-                             const sb_prime_field_t p[static const 1])
+static void
+sb_fe_mod_expt_r(sb_fe_t x[static const 1], const sb_fe_t e[static const 1],
+                 sb_fe_t t2[static const 1], sb_fe_t t3[static const 1],
+                 const sb_prime_field_t p[static const 1])
 {
+    _Bool by = 0;
     *t2 = p->r_mod_p;
-
-    for (size_t i = 1; i <= p->bits; i++) {
-        const size_t idx = p->bits - i;
-        const sb_word_t b = sb_fe_test_bit(e, idx);
-        sb_fe_ctswap(b, t2, x);
-        *t3 = *x;
-        sb_fe_mont_mult(x, t2, t3, p);
-        *t3 = *t2;
-        sb_fe_mont_mult(t2, t3, t3, p);
-        sb_fe_ctswap(b, t2, x);
+    for (size_t i = p->bits - 1; i <= SB_FE_BITS; i--) {
+        const sb_word_t b = sb_fe_test_bit(e, i);
+        if (!by) {
+            if (b) {
+                by = 1;
+            } else {
+                continue;
+            }
+        }
+        sb_fe_mont_square(t3, t2, p);
+        if (b) {
+            sb_fe_mont_mult(t2, t3, x, p);
+        } else {
+            *t2 = *t3;
+        }
     }
     *x = *t2;
 }
 
-void sb_fe_mod_inv_r(sb_fe_t dest[static const 1], sb_fe_t t2[static const 1], sb_fe_t t3[static const 1],
+void sb_fe_mod_inv_r(sb_fe_t dest[static const 1], sb_fe_t t2[static const 1],
+                     sb_fe_t t3[static const 1],
                      const sb_prime_field_t p[static const 1])
 {
-    sb_fe_mod_expt_r(dest, &p->p_minus_two, t2, t3, p);
+    sb_fe_mod_expt_r(dest, &p->p_minus_two_f1, t2, t3, p);
+    sb_fe_mod_expt_r(dest, &p->p_minus_two_f2, t2, t3, p);
 }
 
 #ifdef SB_TEST
 
-static void sb_fe_mod_expt(sb_fe_t x[static const 1], const sb_fe_t e[static const 1],
-                           sb_fe_t t2[static const 1], sb_fe_t t3[static const 1],
-                           const sb_prime_field_t p[static const 1])
+static void
+sb_fe_mod_expt(sb_fe_t x[static const 1], const sb_fe_t e[static const 1],
+               sb_fe_t t2[static const 1], sb_fe_t t3[static const 1],
+               const sb_prime_field_t p[static const 1])
 {
     sb_fe_mont_mult(t2, x, &p->r2_mod_p, p);
     *x = *t2;
@@ -527,10 +538,12 @@ static void sb_fe_mod_expt(sb_fe_t x[static const 1], const sb_fe_t e[static con
     *x = *t2;
 }
 
-void sb_fe_mod_inv(sb_fe_t dest[static const 1], sb_fe_t t2[static const 1], sb_fe_t t3[static const 1],
+void sb_fe_mod_inv(sb_fe_t dest[static const 1], sb_fe_t t2[static const 1],
+                   sb_fe_t t3[static const 1],
                    const sb_prime_field_t p[static const 1])
 {
-    sb_fe_mod_expt(dest, &p->p_minus_two, t2, t3, p);
+    sb_fe_mod_expt(dest, &p->p_minus_two_f1, t2, t3, p);
+    sb_fe_mod_expt(dest, &p->p_minus_two_f2, t2, t3, p);
 }
 
 void sb_test_mod_expt_p(void)

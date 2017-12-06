@@ -95,6 +95,60 @@ static const sb_word_t SB_WORD_BITS_MASK = 0x07;
 
 #endif
 
+#if defined(SB_UNROLL_ALL) && !defined(SB_UNROLL_MUL)
+#define SB_UNROLL_MUL
+#endif
+
+// Note: when porting to a new compiler, check to see if it's smart enough to
+// optimize out the dead code when v >= SB_FE_WORDS!
+#ifdef SB_UNROLL_MUL
+#define SB_UNROLL_WORDS(v, i, ...) do { \
+    sb_bitcount_t v = (i); \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+    if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
+} while (0)
+#else
+#define SB_UNROLL_WORDS(v, i, ...) \
+    do { for (size_t v = (i); v < SB_FE_WORDS; v++) __VA_ARGS__ } while (0)
+#endif
+
+#ifdef SB_UNROLL_ALL
+#define SB_UNROLL_WORDS_2(v, i, ...) SB_UNROLL_WORDS(v, i, __VA_ARGS__)
+#else
+#define SB_UNROLL_WORDS_2(v, i, ...) \
+    do { for (size_t v = (i); v < SB_FE_WORDS; v++) __VA_ARGS__ } while (0)
+#endif
+
 typedef struct sb_fe_t {
     sb_word_t words[SB_FE_WORDS];
 } sb_fe_t;
@@ -111,7 +165,14 @@ static const sb_fe_t SB_FE_ZERO = SB_FE_CONST(0, 0, 0, 0);
 typedef struct sb_prime_field_t {
     sb_fe_t p;
     // Inversion mod p uses Fermat's little theorem: n^-1 == n^(p-2) mod p
-    sb_fe_t p_minus_two;
+    // Inversion does not need to be constant time with respect to the chosen
+    // prime, and as such it's best to use exponents with a minimum Hamming
+    // weight. Thus, we compute (n^f_1)^f_2 where (f_1 * f_2) = p - 2.
+    // You can optimize inversion routines with more intermediate products
+    // than this approach, but this works "well enough" for our purposes.
+    sb_fe_t p_minus_two_f1; // used for Fermat's little theorem based inversion
+    sb_fe_t p_minus_two_f2; // second factor of p - 2
+
     sb_word_t p_mp; // -(p^-1) mod M, where M is the size of sb_dword_t
     sb_fe_t r2_mod_p; // 2^(SB_FE_BITS * 2) mod p
     sb_fe_t r_mod_p; // 2^SB_FE_BITS mod p

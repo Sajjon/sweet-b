@@ -129,6 +129,12 @@ microcontrollers without full 64-bit multiply output (such as the Cortex-M0+),
 you should set this to 1 or 2. On 64-bit x86 systems, you may want to set the
 multiplication size to 8 to use 128-bit multiplication output.
 
+If you have a little more program memory available, you may want to set
+`SB_UNROLL_MUL` or `SB_UNROLL_ALL` when compiling. Sweet B will also attempt
+to detect ARM processors which support DSP extensions and use the `UMAAL`
+instruction for multiplication; see [`sb_fe.c`](sb_fe.c) if this
+autodetection does not work for you.
+
 [CMake](https://cmake.org/) build support is provided; to use it, create a
 directory for your build, run `cmake` with the path to the Sweet B sources, and
 then run `make` to build. To run the unit tests with the clang undefined

@@ -88,6 +88,22 @@ static inline void sb_sha256_word_set(sb_byte_t p[static const sizeof
     p[3] = (sb_byte_t) w;
 }
 
+#define W_HOP(W, n) do { (W)[(n)] = (W)[(n) + 1]; } while (0)
+
+#define W_SHIFT(W) do { \
+    W_HOP(W,  0); W_HOP(W,  1); W_HOP(W,  2); W_HOP(W,  3); \
+    W_HOP(W,  4); W_HOP(W,  5); W_HOP(W,  6); W_HOP(W,  7); \
+    W_HOP(W,  8); W_HOP(W,  9); W_HOP(W, 10); W_HOP(W, 11); \
+    W_HOP(W, 12); W_HOP(W, 13); W_HOP(W, 14); \
+} while (0)
+
+#define A_H_HOP(a_h, i) do { (a_h)[(i) + 1] = (a_h)[(i)]; } while (0)
+
+#define A_H_SHIFT(a_h) do { \
+    A_H_HOP(a_h, 6); A_H_HOP(a_h, 5); A_H_HOP(a_h, 4); A_H_HOP(a_h, 3); \
+    A_H_HOP(a_h, 2); A_H_HOP(a_h, 1); A_H_HOP(a_h, 0); \
+} while (0)
+
 static void sb_sha256_process_block
     (sb_sha256_state_t sha[static const 1],
      const sb_byte_t M_i[static const SB_SHA256_BLOCK_SIZE])
@@ -110,7 +126,8 @@ static void sb_sha256_process_block
         }
 
         // slide the window
-        memmove(&sha->W[0], &sha->W[1], 15 * sizeof(uint32_t));
+        W_SHIFT(sha->W);
+        //memmove(&sha->W[0], &sha->W[1], 15 * sizeof(uint32_t));
         sha->W[15] = Wt;
 
         const uint32_t T1 = sha->a_h[7] +
@@ -122,7 +139,7 @@ static void sb_sha256_process_block
                             MAJ(sha->a_h[0], sha->a_h[1], sha->a_h[2]);
 
         // shift a..g into b..h
-        memmove(&sha->a_h[1], &sha->a_h[0], 7 * sizeof(uint32_t));
+        A_H_SHIFT(sha->a_h);
 
         sha->a_h[4] += T1; // e = d + T1
 

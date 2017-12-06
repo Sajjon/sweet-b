@@ -55,7 +55,7 @@ int main(int argc, char** argv)
         TEST(shared_iter_k256);
     } else {
         for (size_t i = 0; i < 8192; i++) {
-            sb_test_verify();
+            sb_test_sign_rfc6979();
         }
     }
     return 0;
