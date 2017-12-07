@@ -88,30 +88,6 @@ static inline void sb_sha256_word_set(sb_byte_t p[static const sizeof
     p[3] = (sb_byte_t) w;
 }
 
-#define A_H_HOP_1(a_h) do { (a_h)[1] = (a_h)[0]; (a_h)--; } while (0)
-
-#if defined(__ARM_ARCH) && __ARM_ARCH >= 6
-#define A_H_HOP(a_h) do { \
-    register uint32_t a, b; \
-    (a_h)--; \
-    __asm("ldrd %0, %1, [%2], #-8\n\t" \
-          : "=r" (a), "=r" (b), "+r" (a_h) : ); \
-    __asm("strd %0, %1, [%2, #12]" \
-         : : "r" (a), "r" (b), "r" (a_h)); \
-    (a_h)++; \
-} while (0)
-#else
-#define A_H_HOP(a_h) do { \
-    A_H_HOP_1(a_h); A_H_HOP_1(a_h); \
-} while (0)
-#endif
-
-#define A_H_SHIFT(a_h) do { \
-    uint32_t* j = (a_h) + 6; \
-    A_H_HOP(j); A_H_HOP(j); \
-    A_H_HOP(j); A_H_HOP_1(j); \
-} while (0)
-
 static void sb_sha256_process_block
     (sb_sha256_state_t sha[static const 1],
      const sb_byte_t M_i[static const SB_SHA256_BLOCK_SIZE])
@@ -140,21 +116,24 @@ static void sb_sha256_process_block
             W_i(0) = Wt;
         }
 
-        const uint32_t T1 = sha->a_h[7] +
-                            BSIG1(sha->a_h[4]) +
-                            CH(sha->a_h[4], sha->a_h[5], sha->a_h[6]) +
+        // Read A_H(i) as 'a' + i (for example, A_H(4) is e)
+#define A_H(i) (sha->a_h[((i) + (64 - t)) % 8])
+        const uint32_t T1 = A_H(7) +
+                            BSIG1(A_H(4)) +
+                            CH(A_H(4), A_H(5), A_H(6)) +
                             K[t] + Wt;
 
-        const uint32_t T2 = BSIG0(sha->a_h[0]) +
-                            MAJ(sha->a_h[0], sha->a_h[1], sha->a_h[2]);
+        const uint32_t T2 = BSIG0(A_H(0)) +
+                            MAJ(A_H(0), A_H(1), A_H(2));
 
-        // shift a..g into b..h
-        A_H_SHIFT(sha->a_h);
+        // On the next iteration, the a_h window will rotate.
+        // A_H(3) will become the new e
+        // A_H(7) will become the new h
 
-        sha->a_h[4] += T1; // e = d + T1
+        A_H(3) += T1; // e = d + T1
 
         // a = T1 + T2
-        sha->a_h[0] = T1 + T2;
+        A_H(7) = T1 + T2;
     }
 
     for (t = 0; t < 8; t++) {
