@@ -21,11 +21,15 @@
 #define SB_SHA256_SIZE 32
 #define SB_SHA256_BLOCK_SIZE 64
 
+typedef struct sb_sha256_ihash_t {
+    uint32_t v[8];
+} sb_sha256_ihash_t;
+
 // Private state structure; you are responsible for allocating this and
 // passing it in to sha256 operations
 typedef struct sb_sha256_state_t {
-    uint32_t ihash[8]; // Intermediate hash state
-    uint32_t a_h[8]; // a through h, the working variables
+    sb_sha256_ihash_t ihash; // Intermediate hash state
+    sb_sha256_ihash_t a_h; // a through h, the working variables
     uint32_t W[16]; // message schedule rotating window
     sb_byte_t buffer[SB_SHA256_BLOCK_SIZE]; // Block-sized buffer of input
     size_t total_bytes; // Total number of bytes processed

@@ -20,9 +20,11 @@
 
 // see RFC 6234 for the definitions used here
 
-static const uint32_t sb_sha256_init_state[] = {
-    0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
-    0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19
+static const sb_sha256_ihash_t sb_sha256_init_state = {
+    .v = {
+        0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
+        0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19
+    }
 };
 
 static const uint32_t K[] = {
@@ -94,7 +96,7 @@ static void sb_sha256_process_block
 {
     size_t t;
 
-    memcpy(sha->a_h, sha->ihash, SB_SHA256_SIZE);
+    sha->a_h = sha->ihash;
 
     for (t = 0; t < 64; t++) {
         uint32_t Wt;
@@ -117,7 +119,7 @@ static void sb_sha256_process_block
         }
 
         // Read A_H(i) as 'a' + i (for example, A_H(4) is e)
-#define A_H(i) (sha->a_h[((i) + (64 - t)) % 8])
+#define A_H(i) (sha->a_h.v[((i) + (64 - t)) % 8])
         const uint32_t T1 = A_H(7) +
                             BSIG1(A_H(4)) +
                             CH(A_H(4), A_H(5), A_H(6)) +
@@ -138,14 +140,13 @@ static void sb_sha256_process_block
 
     for (t = 0; t < 8; t++) {
         // Compute the intermediate hash value H(i)
-        sha->ihash[t] += sha->a_h[t];
+        sha->ihash.v[t] += sha->a_h.v[t];
     }
 }
 
 void sb_sha256_init(sb_sha256_state_t sha[static const 1])
 {
-    memset(sha, 0, sizeof(sb_sha256_state_t));
-    memcpy(sha->ihash, sb_sha256_init_state, sizeof(sb_sha256_init_state));
+    *sha = (sb_sha256_state_t) { .ihash = sb_sha256_init_state };
 }
 
 // Process a buffer of an arbitrary number of bytes
@@ -203,7 +204,7 @@ void sb_sha256_finish(sb_sha256_state_t sha[static const 1],
     sb_sha256_process_block(sha, sha->buffer);
 
     for (size_t i = 0; i < 8; i++) {
-        sb_sha256_word_set(&output[i << 2], sha->ihash[i]);
+        sb_sha256_word_set(&output[i << 2], sha->ihash.v[i]);
     }
 }
 
