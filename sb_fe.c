@@ -373,7 +373,7 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
     const sb_word_t y_0 = SB_FE_WORD(y, 0);
     sb_word_t hw = 0;
 
-    SB_UNROLL_WORDS(i, 0, { // for i from 0 to (n - 1)
+    SB_UNROLL_WORDS_2(i, 0, { // for i from 0 to (n - 1)
         // 2.1 u_i = (a_0 + x_i y_0) m' mod b
         const sb_word_t x_i = SB_FE_WORD(x, i);
 
