@@ -88,22 +88,20 @@ static inline void sb_sha256_word_set(sb_byte_t p[static const sizeof
     p[3] = (sb_byte_t) w;
 }
 
-#define W_HOP_1(W) do { (W)[0] = (W)[1]; } while (0)
-
 #if defined(__ARM_ARCH) && __ARM_ARCH >= 6
 #define W_HOP(W) do { \
     register uint32_t a, b; \
-    (W)++; \
+    (W) += 4; \
     __asm("ldrd %0, %1, [%2], #8\n\t" \
           : "=r" (a), "=r" (b), "+r" (W) : ); \
-    __asm("strd %0, %1, [%2, #-12]" \
+    __asm("strd %0, %1, [%2, #-24]" \
          : : "r" (a), "r" (b), "r" (W)); \
-    (W)--; \
+    (W) -= 4; \
 } while (0)
 #else
 #define W_HOP(W) do { \
     uint32_t a, b; \
-    a = (W)[1]; b = (W)[2]; \
+    a = (W)[4]; b = (W)[5]; \
     (W)[0] = a; (W)[1] = b; \
     (W) += 2; \
 } while (0)
@@ -114,7 +112,7 @@ static inline void sb_sha256_word_set(sb_byte_t p[static const sizeof
     W_HOP(j); W_HOP(j);  \
     W_HOP(j); W_HOP(j);  \
     W_HOP(j); W_HOP(j); \
-    W_HOP(j); W_HOP_1(j); \
+    W_HOP(j); W_HOP(j); \
 } while (0)
 
 #define A_H_HOP_1(a_h) do { (a_h)[1] = (a_h)[0]; (a_h)--; } while (0)
@@ -154,18 +152,23 @@ static void sb_sha256_process_block
 
         // in the standard, W is a 64-word message schedule, of which at most
         // the sixteen values starting at t - 16 are used in any given iteration
-        // here, W is a sliding window, with W[15] being W_t
+        // here, W is a sliding window of 20 values; every four iterations, the
+        // window slides back so that W[15] is W[t]
         if (t < 16) {
             Wt = sb_sha256_word(&M_i[t << 2]);
+            sha->W[t] = Wt;
         } else {
-            Wt = SSIG1(sha->W[14]) + sha->W[9] +
-                 SSIG0(sha->W[1]) + sha->W[0];
+            size_t off = t % 4;
+            Wt = SSIG1(sha->W[14 + off]) + sha->W[9 + off] +
+                 SSIG0(sha->W[1 + off]) + sha->W[off];
+
+            sha->W[16 + off] = Wt;
+
+            // slide the window
+            if (off == 3) {
+                W_SHIFT(sha->W);
+            }
         }
-
-        // slide the window
-        W_SHIFT(sha->W);
-
-        sha->W[15] = Wt;
 
         const uint32_t T1 = sha->a_h[7] +
                             BSIG1(sha->a_h[4]) +

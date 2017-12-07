@@ -26,7 +26,7 @@
 typedef struct sb_sha256_state_t {
     uint32_t ihash[8]; // Intermediate hash state
     uint32_t a_h[8]; // a through h, the working variables
-    uint32_t W[16]; // message schedule sliding window
+    uint32_t W[20]; // message schedule sliding window
     sb_byte_t buffer[SB_SHA256_BLOCK_SIZE]; // Block-sized buffer of input
     size_t total_bytes; // Total number of bytes processed
 } sb_sha256_state_t;
