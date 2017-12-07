@@ -164,7 +164,7 @@ static void sb_sha256_process_block
 
         // slide the window
         W_SHIFT(sha->W);
-        //memmove(&sha->W[0], &sha->W[1], 15 * sizeof(uint32_t));
+
         sha->W[15] = Wt;
 
         const uint32_t T1 = sha->a_h[7] +
