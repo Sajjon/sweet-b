@@ -88,33 +88,6 @@ static inline void sb_sha256_word_set(sb_byte_t p[static const sizeof
     p[3] = (sb_byte_t) w;
 }
 
-#if defined(__ARM_ARCH) && __ARM_ARCH >= 6
-#define W_HOP(W) do { \
-    register uint32_t a, b; \
-    (W) += 4; \
-    __asm("ldrd %0, %1, [%2], #8\n\t" \
-          : "=r" (a), "=r" (b), "+r" (W) : ); \
-    __asm("strd %0, %1, [%2, #-24]" \
-         : : "r" (a), "r" (b), "r" (W)); \
-    (W) -= 4; \
-} while (0)
-#else
-#define W_HOP(W) do { \
-    uint32_t a, b; \
-    a = (W)[4]; b = (W)[5]; \
-    (W)[0] = a; (W)[1] = b; \
-    (W) += 2; \
-} while (0)
-#endif
-
-#define W_SHIFT(W) do { \
-    uint32_t* j = (W); \
-    W_HOP(j); W_HOP(j);  \
-    W_HOP(j); W_HOP(j);  \
-    W_HOP(j); W_HOP(j); \
-    W_HOP(j); W_HOP(j); \
-} while (0)
-
 #define A_H_HOP_1(a_h) do { (a_h)[1] = (a_h)[0]; (a_h)--; } while (0)
 
 #if defined(__ARM_ARCH) && __ARM_ARCH >= 6
@@ -152,22 +125,19 @@ static void sb_sha256_process_block
 
         // in the standard, W is a 64-word message schedule, of which at most
         // the sixteen values starting at t - 16 are used in any given iteration
-        // here, W is a sliding window of 20 values; every four iterations, the
-        // window slides back so that W[15] is W[t]
+        // here, W is a rotating window of 16 values
         if (t < 16) {
             Wt = sb_sha256_word(&M_i[t << 2]);
             sha->W[t] = Wt;
         } else {
-            size_t off = t % 4;
-            Wt = SSIG1(sha->W[14 + off]) + sha->W[9 + off] +
-                 SSIG0(sha->W[1 + off]) + sha->W[off];
 
-            sha->W[16 + off] = Wt;
+            // Read W_i as "W(t - i)"
+#define W_i(i) (sha->W[((16 - (i)) + t) % 16])
 
-            // slide the window
-            if (off == 3) {
-                W_SHIFT(sha->W);
-            }
+            // Wt = SSIG1(W(t-2)) + W(t-7) + SSIG0(w(t-15)) + W(t-16)
+            Wt = SSIG1(W_i(2)) +  W_i(7) + SSIG0(W_i(15)) + W_i(16);
+
+            W_i(0) = Wt;
         }
 
         const uint32_t T1 = sha->a_h[7] +
