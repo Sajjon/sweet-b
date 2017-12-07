@@ -311,10 +311,6 @@ void sb_test_fe(void)
 
 #endif
 
-typedef struct sb_carry_pair_t {
-    sb_word_t c, c2;
-} sb_carry_pair_t;
-
 static inline void sb_mult_add_add(sb_word_t h[static const 1],
                                    sb_word_t l[static const 1],
                                    const sb_word_t a,
