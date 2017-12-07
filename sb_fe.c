@@ -158,30 +158,42 @@ sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
     return carry;
 }
 
-// adds b or c to dest, depending on a
-static void
-sb_fe_ctc_add_carry(sb_fe_t dest[static const 1], const sb_word_t a,
-                    const sb_fe_t b[static const 1],
-                    const sb_fe_t c[static const 1],
-                    sb_word_t carry)
-{
-    SB_UNROLL_WORDS_2(i, 0, {
-        sb_dword_t d =
-            (sb_dword_t) SB_FE_WORD(dest, i) +
-            (sb_dword_t) sb_ctc_word(a, SB_FE_WORD(b, i),
-                                     SB_FE_WORD(c, i)) +
-            (sb_dword_t) carry;
-        SB_FE_WORD(dest, i) = (sb_word_t) d;
-        carry = (sb_word_t) (d >> SB_WORD_BITS);
-    });
-}
-
 // dest MAY alias left or right
-static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static const 1],
-                                  const sb_fe_t left[static const 1],
-                                  const sb_fe_t right[static const 1],
+static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
+                                  const sb_fe_t left[static 1],
+                                  const sb_fe_t right[static 1],
                                   sb_word_t borrow)
 {
+#if defined(__ARM_ARCH) && __ARM_ARCH >= 6 && SB_MUL_SIZE == 4
+
+    // It seems to be difficult to get gcc to produce sbcs
+
+#define SUB_ITER \
+          "ldrd %0, %1, [%5], #8\n\t" \
+          "ldrd %2, %3, [%6], #8\n\t" \
+          "sbcs %0, %0, %2\n\t" \
+          "sbcs %1, %1, %3\n\t" \
+          "strd %0, %1, [%4], #8\n\t" \
+
+    uint32_t l_0, l_1, r_0, r_1;
+    __asm("mov  %0, #0\n\t"
+          "subs %0, %0, %7\n\t" // set C based on borrow
+
+          SUB_ITER // 0 and 1
+          SUB_ITER // 2 and 3
+          SUB_ITER // 4 and 5
+          SUB_ITER // 6 and 7
+
+          "mov  %7, #1\n\t"
+          "sbc  %7, %7, #0\n\t" // borrow is now inverted
+          "eor  %7, %7, #1\n\t"
+
+          : "=r" (l_0), "=r" (l_1), "=r" (r_0), "=r" (r_1),
+            "+r" (dest), "+r" (left), "+r" (right), "+r" (borrow),
+            "=m" (*dest)
+          : "m" (left), "m" (right));
+
+#else
     SB_UNROLL_WORDS_2(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
                        ((sb_dword_t) SB_FE_WORD(right, i) +
@@ -189,6 +201,7 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static const 1],
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
     });
+#endif
     return borrow;
 }
 
@@ -233,11 +246,19 @@ sb_word_t sb_fe_lt(const sb_fe_t left[static const 1],
 // that addition of a high Hamming-weight value is "closer" to adding p than
 // adding zero.
 
-static void sb_fe_cond_add_p_1(sb_fe_t dest[static const 1], sb_word_t const c,
+static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
                                const sb_prime_field_t p[static const 1])
 {
-    sb_fe_ctc_add_carry(dest, c, &SB_FE_MINUS_ONE, &p->p,
-                        sb_ctc_word(c, 2, 1));
+    sb_word_t carry = sb_ctc_word(c, 2, 1);
+    SB_UNROLL_WORDS_2(i, 0, {
+        sb_dword_t d =
+            (sb_dword_t) SB_FE_WORD(dest, i) +
+            (sb_dword_t) sb_ctc_word(c, SB_FE_WORD(&SB_FE_MINUS_ONE, i),
+                                        SB_FE_WORD(&p->p, i)) +
+            (sb_dword_t) carry;
+        SB_FE_WORD(dest, i) = (sb_word_t) d;
+        carry = (sb_word_t) (d >> SB_WORD_BITS);
+    });
 }
 
 // Given quasi-reduced left and right, produce quasi-reduced left - right.
