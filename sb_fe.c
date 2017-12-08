@@ -370,26 +370,15 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
                      const sb_fe_t y[static const 1],
                      const sb_prime_field_t p[static const 1])
 {
-    *A = p->p; // 1. A = 0
-    const sb_word_t y_0 = SB_FE_WORD(y, 0);
+    *A = p->p; // A = 0
     sb_word_t hw = 0;
 
     SB_UNROLL_WORDS_2(i, 0, { // for i from 0 to (n - 1)
-        // 2.1 u_i = (a_0 + x_i y_0) m' mod b
         const sb_word_t x_i = SB_FE_WORD(x, i);
 
-        sb_word_t c, c2;
-        sb_word_t A_0, tmp;
-        sb_mult_add_add(&c, &A_0, x_i, y_0, SB_FE_WORD(A, 0), 0);
+        sb_word_t c = 0, c2 = 0;
 
-        const sb_word_t u_i =
-            (sb_word_t)
-                (A_0 *
-                    ((sb_dword_t) p->p_mp));
-
-        sb_mult_add_add(&c2, &tmp, u_i, SB_FE_WORD(&p->p, 0), A_0, 0);
-
-        SB_UNROLL_WORDS(j, 1, {
+        SB_UNROLL_WORDS(j, 0, {
             // A = A + x_i * y
             sb_mult_add_add(&c, &SB_FE_WORD(A, j),
                             x_i,
@@ -398,7 +387,13 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
 
         });
 
-        SB_UNROLL_WORDS(j, 1, {
+        // u_i = (a_0 + x_i y_0) m' mod b
+        const sb_word_t u_i =
+            (sb_word_t)
+                (SB_FE_WORD(A, 0) *
+                 ((sb_dword_t) p->p_mp));
+
+        SB_UNROLL_WORDS(j, 0, {
             // A = A + u_i * m
             sb_mult_add_add(&c2, &SB_FE_WORD(A, j), u_i,
                             SB_FE_WORD(&p->p, j), SB_FE_WORD(A, j),
