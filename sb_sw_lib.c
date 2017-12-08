@@ -11,14 +11,14 @@
  *
  */
 
-#include <stddef.h>
-#include <string.h>
-
+#include "sb_test.h"
 #include "sb_fe.h"
 #include "sb_sw_lib.h"
 #include "sb_sw_curves.h"
 #include "sb_hmac_drbg.h"
-#include "sb_test.h"
+
+#include <stddef.h>
+#include <string.h>
 
 // Used for point addition and conjugate addition
 #define C_X1(ct) (&(ct)->c[0])

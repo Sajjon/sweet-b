@@ -11,8 +11,8 @@
  *
  */
 
-#include "sb_fe.h"
 #include "sb_test.h"
+#include "sb_fe.h"
 #include "sb_sw_curves.h"
 
 static const sb_fe_t SB_FE_MINUS_ONE =

@@ -14,19 +14,17 @@
 #ifndef SB_TEST_H
 #define SB_TEST_H
 
-#ifdef SB_TEST
-
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
-
-#endif
-
 #if defined(SB_DEBUG_ASSERTS) || defined(SB_TEST)
+#undef NDEBUG
 #include <assert.h>
 #define SB_ASSERT(e, s) assert((e) && (s)[0])
 #else
 #define SB_ASSERT(e, s) do { } while (0)
+#endif
+
+#ifdef SB_TEST
+#include <stdio.h>
+#include <string.h>
 #endif
 
 #endif

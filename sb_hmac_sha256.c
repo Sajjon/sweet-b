@@ -11,14 +11,9 @@
  *
  */
 
+#include "sb_test.h"
 #include "sb_hmac_sha256.h"
-
-#include <stdlib.h>
 #include <string.h>
-
-#ifdef SB_TEST
-#include <assert.h>
-#endif
 
 static const sb_byte_t ipad = 0x36;
 static const sb_byte_t opad = 0x5C;

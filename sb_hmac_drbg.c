@@ -11,15 +11,9 @@
  *
  */
 
+#include "sb_test.h"
 #include "sb_hmac_drbg.h"
-
 #include <string.h>
-
-#ifdef SB_TEST
-
-#include <assert.h>
-
-#endif
 
 // entropy_input || nonce || personalization
 #define UPDATE_VECTORS SB_HMAC_DRBG_ADD_VECTOR_LEN

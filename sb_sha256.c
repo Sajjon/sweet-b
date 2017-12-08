@@ -11,12 +11,9 @@
  *
  */
 
+#include "sb_test.h"
 #include "sb_sha256.h"
 #include <string.h>
-
-#ifdef SB_TEST
-#include <assert.h>
-#endif
 
 // see RFC 6234 for the definitions used here
 
