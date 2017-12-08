@@ -917,6 +917,12 @@ _Bool sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
         return 0;
     }
 
+    // Bail out early if the DRBG needs to be reseeded
+    // It takes two generate calls to generate a private key
+    if (sb_hmac_drbg_reseed_required(drbg, 2)) {
+        return 0;
+    }
+
     // With P-256, the chance of one random scalar being invalid is <2^-32
     // The chance of two random scalars being invalid is <2^-64
     // With secp256k1, the chance of one random scalar being invalid is <2^-128!
@@ -955,6 +961,11 @@ _Bool sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
     memset(ctx, 0, sizeof(sb_sw_context_t));
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
+        return 0;
+    }
+
+    // Bail out early if the DRBG needs to be reseeded
+    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 1)) {
         return 0;
     }
 
@@ -1025,6 +1036,11 @@ _Bool sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
         return 0;
     }
 
+    // Bail out early if the DRBG needs to be reseeded
+    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 1)) {
+        return 0;
+    }
+
     _Bool res = 1;
 
     // Only the X coordinate of the public key is used as the nonce, since
@@ -1072,6 +1088,13 @@ _Bool sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
 
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
+        return 0;
+    }
+
+    // Bail out early if the DRBG needs to be reseeded
+    // It takes two calls to generate a per-message secret and one to
+    // generate an initial Z
+    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 3)) {
         return 0;
     }
 
@@ -1182,6 +1205,11 @@ _Bool sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
     memset(ctx, 0, sizeof(sb_sw_context_t));
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
+        return 0;
+    }
+
+    // Bail out early if the DRBG needs to be reseeded
+    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 1)) {
         return 0;
     }
 

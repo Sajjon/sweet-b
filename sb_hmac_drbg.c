@@ -82,9 +82,9 @@ sb_hmac_drbg_err_t sb_hmac_drbg_reseed
 }
 
 _Bool sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
-                                   drbg[static const 1])
+                                   drbg[static const 1], const size_t count)
 {
-    return drbg->reseed_counter > SB_HMAC_DRBG_RESEED_INTERVAL;
+    return drbg->reseed_counter + count >= SB_HMAC_DRBG_RESEED_INTERVAL;
 }
 
 sb_hmac_drbg_err_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const 1],

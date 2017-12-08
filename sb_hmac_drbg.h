@@ -106,8 +106,10 @@ extern sb_hmac_drbg_err_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static 1
                                               const sb_byte_t* additional,
                                               size_t additional_len);
 
+// Returns true iff one of the next 'count' sb_hmac_drbg_generate calls will
+// return SB_HMAC_DRBG_ERR_RESEED_REQUIRED
 extern _Bool sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
-                                          drbg[static 1]);
+                                          drbg[static 1], size_t count);
 
 extern sb_hmac_drbg_err_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static 1],
                                                 sb_byte_t* output,
