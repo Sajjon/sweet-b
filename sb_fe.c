@@ -164,7 +164,8 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
                                   const sb_fe_t right[static 1],
                                   sb_word_t borrow)
 {
-#if defined(__ARM_ARCH) && __ARM_ARCH >= 6 && SB_MUL_SIZE == 4
+#if defined(__ARM_ARCH) && __ARM_ARCH >= 6 && defined(__thumb2__) && \
+    SB_MUL_SIZE == 4
 
     // It seems to be difficult to get gcc to produce sbcs
 
