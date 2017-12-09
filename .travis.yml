@@ -10,7 +10,6 @@
 # Copyright 2017 Wearable Inc.
 #
 
-
 language: c
 
 matrix:
@@ -51,6 +50,5 @@ before_script:
   - cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=$C_COMPILER
 
 script:
-  - cd cmake-build-debug
   - make
   - ./sb_test

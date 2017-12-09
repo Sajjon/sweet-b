@@ -14,6 +14,8 @@
 
 ![Sweet B Logo](sweet-b.svg)
 
+[![Build Status](https://travis-ci.org/naniteproject/sweet-b.svg?branch=master)](https://travis-ci.org/naniteproject/sweet-b)
+
 Sweet B is a library which implements public key elliptic curve cryptography
 (ECC) using the NIST P-256 and SECG secp256k1 curves. Sweet B is:
 
