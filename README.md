@@ -138,7 +138,8 @@ autodetection does not work for you.
 [CMake](https://cmake.org/) build support is provided; to use it, create a
 directory for your build, run `cmake` with the path to the Sweet B sources, and
 then run `make` to build. To run the unit tests with the clang undefined
-behavior sanitizer, pass `-DCMAKE_C_COMPILER=clang` to `cmake`.
+behavior and address sanitizers, pass `-DCMAKE_C_COMPILER=clang` to `cmake` if
+clang is not your default compiler.
 
 ## What license is Sweet B available under?
 
