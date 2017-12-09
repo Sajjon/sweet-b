@@ -1,3 +1,16 @@
+#
+# .travis.yml: Travis CI support
+#
+# This file is part of Sweet B, a safe, compact, embeddable elliptic curve
+# cryptography library.
+#
+# Sweet B is provided under the terms of the included LICENSE file. All
+# other rights are reserved.
+#
+# Copyright 2017 Wearable Inc.
+#
+
+
 language: c
 
 matrix:
@@ -13,7 +26,7 @@ matrix:
             - gcc-7
             - cmake3
       env:
-        - CC=gcc-7
+        - C_COMPILER=gcc-7
 
     - os: linux
       compiler: clang
@@ -26,7 +39,7 @@ matrix:
             - clang-4.0
             - cmake3
       env:
-        - CC=clang-4.0
+        - C_COMPILER=clang-4.0
 
     - os: osx
       compiler: clang
@@ -34,9 +47,10 @@ matrix:
 
 before_script:
   - mkdir cmake-build-debug
-    cd cmake-build-debug
-    cmake .. -DCMAKE_BUILD_TYPE=Debug
+  - cd cmake-build-debug
+  - cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=$C_COMPILER
 
 script:
   - cd cmake-build-debug
-    ./sb_test
+  - make
+  - ./sb_test
