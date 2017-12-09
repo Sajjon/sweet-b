@@ -867,9 +867,21 @@ static const sb_sw_curve_t* sb_sw_curve_from_id(sb_sw_curve_id_t const curve)
     return NULL;
 }
 
+// a Z value is invalid if it is zero, since the only point with Z = 0 is the
+// point at infinity. Note that this is not expected to ever occur!
+static sb_error_t sb_sw_z_valid(const sb_fe_t z[static const 1],
+                                const sb_sw_curve_t s[static const 1])
+{
+    sb_error_t err = 0;
+    err |= SB_ERROR_IF(DRBG_FAILURE, sb_fe_equal(z, &SB_FE_ZERO));
+    err |= SB_ERROR_IF(DRBG_FAILURE, sb_fe_equal(z, &s->p->p));
+    return err;
+}
+
 // Initial Z generation for Z blinding (Coron's third countermeasure)
 static sb_error_t sb_sw_generate_z(sb_sw_context_t c[static const 1],
                                    sb_hmac_drbg_state_t* const drbg,
+                                   const sb_sw_curve_t s[static const 1],
                                    const sb_byte_t* const d1, const size_t l1,
                                    const sb_byte_t* const d2, const size_t l2,
                                    const sb_byte_t* const d3, const size_t l3)
@@ -898,6 +910,7 @@ static sb_error_t sb_sw_generate_z(sb_sw_context_t c[static const 1],
     }
 
     sb_fe_from_bytes(MULT_Z(c), c->buf, SB_DATA_ENDIAN_BIG);
+    err |= sb_sw_z_valid(MULT_Z(c), s);
     return err;
 }
 
@@ -982,7 +995,7 @@ sb_error_t sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
     // protection at a higher security level than the underlying HMAC (which
     // is the same security level as our inputs).
 
-    err |= sb_sw_generate_z(ctx, drbg, private->bytes, SB_ELEM_BYTES,
+    err |= sb_sw_generate_z(ctx, drbg, s, private->bytes, SB_ELEM_BYTES,
                             private->bytes, SB_ELEM_BYTES, NULL, 0);
 
     sb_fe_from_bytes(MULT_K(ctx), private->bytes, e);
@@ -1059,7 +1072,7 @@ sb_error_t sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
 
     // Only the X coordinate of the public key is used as the nonce, since
     // the Y coordinate is not an independent input.
-    err |= sb_sw_generate_z(ctx, drbg, private->bytes, SB_ELEM_BYTES,
+    err |= sb_sw_generate_z(ctx, drbg, s, private->bytes, SB_ELEM_BYTES,
                             public->bytes, SB_ELEM_BYTES,
                             NULL, 0);
 
@@ -1176,7 +1189,7 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[SB_ELEM_BYTES], SB_DATA_ENDIAN_BIG);
 
     if (drbg) {
-        // k = c + 1
+        // per FIPS 186-4: k = c + 1
         // if this overflows, the value was invalid to begin with
         err |= SB_ERROR_IF(DRBG_FAILURE,
                            sb_fe_add(MULT_K(ctx), MULT_K(ctx), &SB_FE_ONE));
@@ -1194,11 +1207,11 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
 
     err |= SB_ERROR_IF(DRBG_FAILURE, !sb_sw_scalar_valid(MULT_K(ctx), s));
 
-    // And now generate an initial Z, which is always assumed to be valid
+    // And now generate an initial Z
     err |= sb_hmac_drbg_generate((drbg ? drbg : &ctx->drbg_state),
                                  &ctx->buf[0], SB_ELEM_BYTES);
-
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[0], SB_DATA_ENDIAN_BIG);
+    err |= sb_sw_z_valid(MULT_Z(ctx), s);
 
     // If sb_sw_sign fails, the DRBG produced an extremely low-probability k
     err |= SB_ERROR_IF(DRBG_FAILURE, !sb_sw_sign(ctx, s));
@@ -1240,7 +1253,7 @@ sb_error_t sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
     // division here is somewhat arbitrary since it's just concatenated as
     // HMAC input with the entropy and nonce. When a DRBG is supplied, the
     // public key, signature, and message are all used as additional input.
-    err |= sb_sw_generate_z(ctx, drbg, public->bytes, SB_ELEM_BYTES,
+    err |= sb_sw_generate_z(ctx, drbg, s, public->bytes, SB_ELEM_BYTES,
                             signature->bytes, 2 * SB_ELEM_BYTES,
                             message->bytes, SB_ELEM_BYTES);
 
