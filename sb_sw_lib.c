@@ -939,7 +939,7 @@ sb_error_t sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[SB_ELEM_BYTES], e);
 
     _Bool k1v = sb_sw_scalar_valid(MULT_K(ctx), s);
-    sb_fe_ctswap((sb_word_t) k1v ^ 1, MULT_K(ctx), MULT_Z(ctx));
+    sb_fe_ctswap((sb_word_t) (k1v ^ 1), MULT_K(ctx), MULT_Z(ctx));
 
     err |= SB_ERROR_IF(DRBG_FAILURE, !sb_sw_scalar_valid(MULT_K(ctx), s));
 
@@ -1190,7 +1190,7 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
     // acceptable.
 
     _Bool k1v = sb_sw_scalar_valid(MULT_K(ctx), s);
-    sb_fe_ctswap((sb_word_t) k1v ^ 1, MULT_K(ctx), MULT_Z(ctx));
+    sb_fe_ctswap((sb_word_t) (k1v ^ 1), MULT_K(ctx), MULT_Z(ctx));
 
     err |= SB_ERROR_IF(DRBG_FAILURE, !sb_sw_scalar_valid(MULT_K(ctx), s));
 
