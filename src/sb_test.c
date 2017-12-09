@@ -12,11 +12,6 @@
  */
 
 #include "sb_test.h"
-#include "sb_fe.h"
-#include "sb_sha256.h"
-#include "sb_hmac_sha256.h"
-#include "sb_hmac_drbg.h"
-#include "sb_sw_lib.h"
 
 #include <unistd.h>
 #include <inttypes.h>

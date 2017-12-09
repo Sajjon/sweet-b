@@ -27,14 +27,14 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -pedantic -Wextra")
 
 set(SB_SOURCES
 
-        sb_sha256.c
-        sb_hmac_sha256.c
-        sb_hmac_drbg.c
+        src/sb_sha256.c
+        src/sb_hmac_sha256.c
+        src/sb_hmac_drbg.c
 
-        sb_fe.c
-        sb_sw_lib.c)
+        src/sb_fe.c
+        src/sb_sw_lib.c)
 
-add_executable(sb_test ${SB_SOURCES} sb_test.c)
+add_executable(sb_test ${SB_SOURCES} src/sb_test.c)
 
 # 16x16->32 operations are most likely to accidentally trigger UB if there is
 # a missing cast from implicitly promoted int to uint32_t
@@ -52,8 +52,14 @@ add_library(sweet_b SHARED ${SB_SOURCES})
 
 set_target_properties(sweet_b PROPERTIES
         VERSION ${PROJECT_VERSION}
-        PUBLIC_HEADER "sb_sw_lib.h sb_fe.h sb_hmac_drbg.h sb_hmac_sha256.h
-        sb_sha256.h sb_sw_context.h sb_types.h sb_error.h")
+        PUBLIC_HEADER "src/sb_sw_lib.h
+                       src/sb_fe.h
+                       src/sb_hmac_drbg.h
+                       src/sb_hmac_sha256.h
+                       src/sb_sha256.h
+                       src/sb_sw_context.h
+                       src/sb_types.h
+                       src/sb_error.h")
 
 install(TARGETS sweet_b
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

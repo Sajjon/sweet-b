@@ -6,3 +6,4 @@ build*
 callgrind.out.*
 *~
 *.dSYM
+sb_test
