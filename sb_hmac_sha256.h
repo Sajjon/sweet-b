@@ -39,9 +39,4 @@ extern void sb_hmac_sha256(sb_hmac_sha256_state_t hmac[static 1],
                            size_t keylen, const sb_byte_t* input,
                            size_t len, sb_byte_t output[static SB_SHA256_SIZE]);
 
-
-#ifdef SB_TEST
-extern void sb_test_hmac_sha256(void);
-#endif
-
 #endif

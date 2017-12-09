@@ -161,27 +161,4 @@ extern sb_error_t sb_sw_verify_signature(sb_sw_context_t context[static 1],
                                          sb_sw_curve_id_t curve,
                                          sb_data_endian_t e);
 
-#ifdef SB_TEST
-
-// Unit tests:
-
-extern void sb_test_sw_point_mult_add(void);
-extern void sb_test_exceptions(void);
-extern void sb_test_mont_point_mult(void);
-extern void sb_test_shared_secret(void);
-extern void sb_test_compute_public(void);
-extern void sb_test_valid_public(void);
-extern void sb_test_sign_rfc6979(void);
-extern void sb_test_sign_catastrophe(void);
-extern void sb_test_verify(void);
-extern void sb_test_verify_invalid(void);
-extern void sb_test_shared_secret_k256(void);
-extern void sb_test_sign_k256(void);
-extern void sb_test_sign_iter(void);
-extern void sb_test_sign_iter_k256(void);
-extern void sb_test_shared_iter(void);
-extern void sb_test_shared_iter_k256(void);
-extern void sb_test_sw_early_errors(void);
-#endif
-
 #endif

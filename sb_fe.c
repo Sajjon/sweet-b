@@ -255,7 +255,7 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
         sb_dword_t d =
             (sb_dword_t) SB_FE_WORD(dest, i) +
             (sb_dword_t) sb_ctc_word(c, SB_FE_WORD(&SB_FE_MINUS_ONE, i),
-                                        SB_FE_WORD(&p->p, i)) +
+                                     SB_FE_WORD(&p->p, i)) +
             (sb_dword_t) carry;
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         carry = (sb_word_t) (d >> SB_WORD_BITS);
@@ -309,26 +309,27 @@ void sb_fe_mod_double(sb_fe_t dest[static const 1],
 
 #ifdef SB_TEST
 
-void sb_test_fe(void)
+_Bool sb_test_fe(void)
 {
     sb_fe_t res;
-    assert(sb_fe_sub(&res, &SB_FE_ZERO, &SB_FE_ONE) == 1);
+    SB_TEST_ASSERT(sb_fe_sub(&res, &SB_FE_ZERO, &SB_FE_ONE) == 1);
     for (size_t i = 0; i < SB_FE_WORDS; i++) {
-        assert(SB_FE_WORD(&res, i) == (sb_word_t) -1);
+        SB_TEST_ASSERT(SB_FE_WORD(&res, i) == (sb_word_t) -1);
     }
-    assert(sb_fe_add(&res, &res, &SB_FE_ONE) == 1);
-    assert(sb_fe_equal(&res, &SB_FE_ZERO));
+    SB_TEST_ASSERT(sb_fe_add(&res, &res, &SB_FE_ONE) == 1);
+    SB_TEST_ASSERT(sb_fe_equal(&res, &SB_FE_ZERO));
 
     // all 0xFF
-    assert(sb_fe_sub(&res, &SB_FE_ZERO, &SB_FE_ONE) == 1);
+    SB_TEST_ASSERT(sb_fe_sub(&res, &SB_FE_ZERO, &SB_FE_ONE) == 1);
     sb_fe_rshift(&res, 1);
     // 0xFFFF.....FFFE
-    assert(sb_fe_add(&res, &res, &res) == 0);
+    SB_TEST_ASSERT(sb_fe_add(&res, &res, &res) == 0);
     // 0xFFFF.....FFFF
-    assert(sb_fe_add(&res, &res, &SB_FE_ONE) == 0);
+    SB_TEST_ASSERT(sb_fe_add(&res, &res, &SB_FE_ONE) == 0);
     // 0
-    assert(sb_fe_add(&res, &res, &SB_FE_ONE) == 1);
-    assert(sb_fe_equal(&res, &SB_FE_ZERO));
+    SB_TEST_ASSERT(sb_fe_add(&res, &res, &SB_FE_ONE) == 1);
+    SB_TEST_ASSERT(sb_fe_equal(&res, &SB_FE_ZERO));
+    return 1;
 }
 
 #endif
@@ -436,7 +437,7 @@ void sb_fe_mont_reduce(sb_fe_t dest[static const restrict 1],
 
 #ifdef SB_TEST
 
-void sb_test_mont_mult(void)
+_Bool sb_test_mont_mult(void)
 {
     static const sb_fe_t p256_r_inv =
         SB_FE_CONST(0xFFFFFFFE00000003, 0xFFFFFFFD00000002,
@@ -444,39 +445,39 @@ void sb_test_mont_mult(void)
     sb_fe_t t = SB_FE_ZERO;
 
     sb_fe_t r = SB_FE_ZERO;
-    assert(sb_fe_sub(&r, &r, &SB_CURVE_P256_P.p) == 1); // r = R mod P
+    SB_TEST_ASSERT(sb_fe_sub(&r, &r, &SB_CURVE_P256_P.p) == 1); // r = R mod P
 
     sb_fe_mont_square(&t, &SB_FE_ONE, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &p256_r_inv));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &p256_r_inv));
     // aka R^-1 mod P
 
     sb_fe_mont_mult(&t, &r, &SB_FE_ONE, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &SB_FE_ONE));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_FE_ONE));
 
     sb_fe_mont_mult(&t, &SB_CURVE_P256_P.r2_mod_p, &SB_FE_ONE,
                     &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &r));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &r));
 
     sb_fe_mont_mult(&t, &SB_CURVE_P256_P.r2_mod_p,
                     &p256_r_inv, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &SB_FE_ONE));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_FE_ONE));
 
     sb_fe_t t2;
     sb_fe_mont_mult(&t2, &SB_CURVE_P256_N.p, &SB_CURVE_P256_P.r2_mod_p,
                     &SB_CURVE_P256_P);
     sb_fe_mont_reduce(&t, &t2, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &SB_CURVE_P256_N.p));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_CURVE_P256_N.p));
 
     r = SB_FE_ZERO;
-    assert(sb_fe_sub(&r, &r, &SB_CURVE_P256_N.p) == 1); // r = R mod N
-    assert(sb_fe_equal(&r, &SB_CURVE_P256_N.r_mod_p));
+    SB_TEST_ASSERT(sb_fe_sub(&r, &r, &SB_CURVE_P256_N.p) == 1); // r = R mod N
+    SB_TEST_ASSERT(sb_fe_equal(&r, &SB_CURVE_P256_N.r_mod_p));
 
     sb_fe_mont_mult(&t, &SB_CURVE_P256_N.r2_mod_p, &SB_FE_ONE,
                     &SB_CURVE_P256_N);
-    assert(sb_fe_equal(&t, &r));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &r));
 
     sb_fe_mont_mult(&t, &r, &SB_FE_ONE, &SB_CURVE_P256_N);
-    assert(sb_fe_equal(&t, &SB_FE_ONE));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_FE_ONE));
 
     static const sb_fe_t a5 = SB_FE_CONST(0xAA55AA55AA55AA55,
                                           0x55AA55AA55AA55AA,
@@ -485,7 +486,8 @@ void sb_test_mont_mult(void)
 
     sb_fe_mont_mult(&t, &SB_CURVE_P256_P.p, &a5,
                     &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &SB_CURVE_P256_P.p));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_CURVE_P256_P.p));
+    return 1;
 }
 
 #endif
@@ -551,15 +553,16 @@ sb_fe_mod_expt(sb_fe_t x[static const 1], const sb_fe_t e[static const 1],
     *x = *t2;
 }
 
-void sb_fe_mod_inv(sb_fe_t dest[static const 1], sb_fe_t t2[static const 1],
-                   sb_fe_t t3[static const 1],
-                   const sb_prime_field_t p[static const 1])
+static void sb_fe_mod_inv(sb_fe_t dest[static const 1],
+                          sb_fe_t t2[static const 1],
+                          sb_fe_t t3[static const 1],
+                          const sb_prime_field_t p[static const 1])
 {
     sb_fe_mod_expt(dest, &p->p_minus_two_f1, t2, t3, p);
     sb_fe_mod_expt(dest, &p->p_minus_two_f2, t2, t3, p);
 }
 
-void sb_test_mod_expt_p(void)
+_Bool sb_test_mod_expt_p(void)
 {
     const sb_fe_t two = SB_FE_CONST(0, 0, 0, 2);
     const sb_fe_t thirtytwo = SB_FE_CONST(0, 0, 0, 32);
@@ -567,25 +570,25 @@ void sb_test_mod_expt_p(void)
     sb_fe_t t, t2, t3;
     t = two;
     sb_fe_mod_expt(&t, &thirtytwo, &t2, &t3, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &two_expt_thirtytwo));
+    SB_TEST_ASSERT(sb_fe_equal(&t, &two_expt_thirtytwo));
 
     t = SB_CURVE_P256_N.p;
     sb_fe_mod_expt(&t, &SB_CURVE_P256_P.p, &t2, &t3, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &SB_CURVE_P256_N.p)); // n^p == n
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_CURVE_P256_N.p)); // n^p == n
 
     t = SB_CURVE_P256_N.p;
     sb_fe_mod_expt(&t, &SB_FE_ONE, &t2, &t3, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &SB_CURVE_P256_N.p)); // n^1 = n
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_CURVE_P256_N.p)); // n^1 = n
 
     t = SB_CURVE_P256_P.p;
     sb_fe_sub(&t, &t, &SB_FE_ONE);
     sb_fe_mod_inv(&t, &t2, &t3, &SB_CURVE_P256_P);
     sb_fe_add(&t, &t, &SB_FE_ONE);
-    assert(sb_fe_equal(&t, &SB_CURVE_P256_P.p)); // (p-1)^-1 == (p-1)
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_CURVE_P256_P.p)); // (p-1)^-1 == (p-1)
 
     t = SB_FE_ONE;
     sb_fe_mod_inv(&t, &t2, &t3, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t, &SB_FE_ONE)); // 1^-1 == 1
+    SB_TEST_ASSERT(sb_fe_equal(&t, &SB_FE_ONE)); // 1^-1 == 1
 
     // t = B * R^-1
     sb_fe_mont_mult(&t, &SB_CURVE_P256.b, &SB_FE_ONE, &SB_CURVE_P256_P);
@@ -595,13 +598,14 @@ void sb_test_mod_expt_p(void)
 
     // t2 = B^-1 * R * B * R^-1 = 1
     sb_fe_mont_mult(&t2, &t, &SB_CURVE_P256.b, &SB_CURVE_P256_P);
-    assert(sb_fe_equal(&t2, &SB_FE_ONE));
+    SB_TEST_ASSERT(sb_fe_equal(&t2, &SB_FE_ONE));
 
     // and again, mod N
     sb_fe_mont_mult(&t, &SB_CURVE_P256.b, &SB_FE_ONE, &SB_CURVE_P256_N);
     sb_fe_mod_inv(&t, &t2, &t3, &SB_CURVE_P256_N);
     sb_fe_mont_mult(&t2, &t, &SB_CURVE_P256.b, &SB_CURVE_P256_N);
-    assert(sb_fe_equal(&t2, &SB_FE_ONE));
+    SB_TEST_ASSERT(sb_fe_equal(&t2, &SB_FE_ONE));
+    return 1;
 }
 
 #endif

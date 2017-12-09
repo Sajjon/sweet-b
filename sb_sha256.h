@@ -44,9 +44,4 @@ extern void sb_sha256_update(sb_sha256_state_t sha[static 1],
 extern void sb_sha256_finish(sb_sha256_state_t sha[static 1],
                              sb_byte_t output[static SB_SHA256_SIZE]);
 
-// Unit tests
-#ifdef SB_TEST
-extern void sb_test_sha256(void);
-#endif
-
 #endif

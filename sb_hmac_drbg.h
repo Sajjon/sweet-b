@@ -121,8 +121,4 @@ extern sb_error_t sb_hmac_drbg_generate_additional_vec
      const sb_byte_t* const additional[static SB_HMAC_DRBG_ADD_VECTOR_LEN],
      const size_t additional_len[static SB_HMAC_DRBG_ADD_VECTOR_LEN]);
 
-#ifdef SB_TEST
-extern void sb_test_hmac_drbg(void);
-#endif
-
 #endif

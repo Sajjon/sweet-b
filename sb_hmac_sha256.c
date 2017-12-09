@@ -283,25 +283,26 @@ static const sb_byte_t TEST_H7[] = {
     0x5c, 0x3a, 0x35, 0xe2,
 };
 
-void sb_test_hmac_sha256(void)
+_Bool sb_test_hmac_sha256(void)
 {
     sb_hmac_sha256_state_t hmac;
     sb_byte_t h[SB_SHA256_SIZE];
 
-#define TEST(n) do { \
+#define SB_RUN_TEST(n) do { \
     sb_hmac_sha256_init(&hmac, TEST_K ## n, sizeof(TEST_K ## n)); \
     sb_hmac_sha256_update(&hmac, TEST_M ## n, sizeof(TEST_M ## n)); \
     sb_hmac_sha256_finish(&hmac, h); \
-    assert(memcmp(h, TEST_H ## n, sizeof(TEST_H ## n)) == 0); \
+    SB_TEST_ASSERT_EQUAL(h, TEST_H ## n); \
 } while (0)
 
-    TEST(1);
-    TEST(2);
-    TEST(3);
-    TEST(4);
-    TEST(5);
-    TEST(6);
-    TEST(7);
+    SB_RUN_TEST(1);
+    SB_RUN_TEST(2);
+    SB_RUN_TEST(3);
+    SB_RUN_TEST(4);
+    SB_RUN_TEST(5);
+    SB_RUN_TEST(6);
+    SB_RUN_TEST(7);
+    return 1;
 }
 
 #endif

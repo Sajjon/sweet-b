@@ -110,7 +110,7 @@ static void sb_sha256_process_block
 #define W_i(i) (sha->W[((16 - (i)) + t) % 16])
 
             // Wt = SSIG1(W(t-2)) + W(t-7) + SSIG0(w(t-15)) + W(t-16)
-            Wt = SSIG1(W_i(2)) +  W_i(7) + SSIG0(W_i(15)) + W_i(16);
+            Wt = SSIG1(W_i(2)) + W_i(7) + SSIG0(W_i(15)) + W_i(16);
 
             W_i(0) = Wt;
         }
@@ -237,7 +237,7 @@ static const sb_byte_t TEST_H3[] = {
     0x04, 0x6D, 0x39, 0xCC, 0xC7, 0x11, 0x2C, 0xD0
 };
 
-void sb_test_sha256(void)
+_Bool sb_test_sha256_1(void)
 {
     sb_sha256_state_t ctx;
     sb_byte_t hash[SB_SHA256_SIZE];
@@ -245,12 +245,26 @@ void sb_test_sha256(void)
     sb_sha256_init(&ctx);
     sb_sha256_update(&ctx, TEST_M1, sizeof(TEST_M1) - 1);
     sb_sha256_finish(&ctx, hash);
-    assert(memcmp(TEST_H1, hash, SB_SHA256_SIZE) == 0);
+    SB_TEST_ASSERT_EQUAL(hash, TEST_H1);
+    return 1;
+}
+
+_Bool sb_test_sha256_2(void)
+{
+    sb_sha256_state_t ctx;
+    sb_byte_t hash[SB_SHA256_SIZE];
 
     sb_sha256_init(&ctx);
     sb_sha256_update(&ctx, TEST_M2, sizeof(TEST_M2) - 1);
     sb_sha256_finish(&ctx, hash);
-    assert(memcmp(TEST_H2, hash, SB_SHA256_SIZE) == 0);
+    SB_TEST_ASSERT_EQUAL(hash, TEST_H2);
+    return 1;
+}
+
+_Bool sb_test_sha256_3(void)
+{
+    sb_sha256_state_t ctx;
+    sb_byte_t hash[SB_SHA256_SIZE];
 
     size_t len = 1000000; // one MILLION 'a's
     size_t chunk = 1;
@@ -273,8 +287,9 @@ void sb_test_sha256(void)
         iter++;
     }
     sb_sha256_finish(&ctx, hash);
-    assert(memcmp(TEST_H3, hash, SB_SHA256_SIZE) == 0);
-    assert(hit_block_boundary);
+    SB_TEST_ASSERT_EQUAL(hash, TEST_H3);
+    SB_TEST_ASSERT(hit_block_boundary);
+    return 1;
 }
 
 #endif

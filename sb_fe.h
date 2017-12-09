@@ -239,16 +239,4 @@ extern void sb_fe_mod_inv_r(sb_fe_t dest[static 1],
                             sb_fe_t t3[static 1],
                             const sb_prime_field_t p[static 1]);
 
-#ifdef SB_TEST
-
-extern void sb_fe_mod_inv(sb_fe_t dest[static 1],
-                          sb_fe_t t2[static 1],
-                          sb_fe_t t3[static 1],
-                            const sb_prime_field_t p[static 1]);
-
-extern void sb_test_fe(void);
-extern void sb_test_mont_mult(void);
-extern void sb_test_mod_expt_p(void);
-#endif
-
 #endif

@@ -87,9 +87,12 @@ sb_error_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static const 1],
 }
 
 sb_error_t sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
-                                   drbg[static const 1], const size_t count)
+                                        drbg[static const 1],
+                                        const size_t count)
 {
-    if (drbg->reseed_counter + count >= SB_HMAC_DRBG_RESEED_INTERVAL) {
+    // if drbg->reseed_counter == SB_HMAC_DRBG_RESEED_INTERVAL then the next
+    // call to generate will succeed, but the following call will fail
+    if (drbg->reseed_counter + count > SB_HMAC_DRBG_RESEED_INTERVAL + 1) {
         return SB_ERROR_RESEED_REQUIRED;
     } else {
         return 0;
@@ -243,27 +246,27 @@ static const sb_byte_t TEST_R1[] = {
     0xab, 0xa8, 0x06, 0xf4, 0x8b, 0xe9, 0xdc, 0xb8,
 };
 
-void sb_test_hmac_drbg(void)
+_Bool sb_test_hmac_drbg(void)
 {
     sb_byte_t r[128];
     sb_hmac_drbg_state_t drbg;
     const sb_byte_t* add[SB_HMAC_DRBG_ADD_VECTOR_LEN] = { NULL };
     size_t add_len[SB_HMAC_DRBG_ADD_VECTOR_LEN] = { 0 };
-    assert(sb_hmac_drbg_init(&drbg, TEST_E1, sizeof(TEST_E1), TEST_N1, sizeof
-    (TEST_N1), TEST_P1 + 1, sizeof(TEST_P1) - 1) == SB_SUCCESS);
+    SB_TEST_ASSERT_SUCCESS(
+        sb_hmac_drbg_init(&drbg, TEST_E1, sizeof(TEST_E1), TEST_N1,
+                          sizeof(TEST_N1), TEST_P1 + 1, sizeof(TEST_P1) - 1));
     add[0] = TEST_A1 + 1;
     add_len[0] = sizeof(TEST_A1) - 1;
-    assert(
+    SB_TEST_ASSERT_SUCCESS(
         sb_hmac_drbg_generate_additional_vec(&drbg, r, sizeof(TEST_R1),
-                                             add, add_len) ==
-            SB_SUCCESS);
+                                             add, add_len));
     add[0] = TEST_AA1 + 1;
     add_len[0] = sizeof(TEST_AA1) - 1;
-    assert(
+    SB_TEST_ASSERT_SUCCESS(
         sb_hmac_drbg_generate_additional_vec(&drbg, r, sizeof(TEST_R1),
-                                             add, add_len) ==
-            SB_SUCCESS);
-    assert(memcmp(r, TEST_R1, sizeof(TEST_R1)) == 0);
+                                             add, add_len));
+    SB_TEST_ASSERT_EQUAL(r, TEST_R1, sizeof(TEST_R1));
+    return 1;
 }
 
 #endif
