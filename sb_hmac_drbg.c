@@ -56,20 +56,25 @@ static void sb_hmac_drbg_update_vec
     }
 }
 
-sb_hmac_drbg_err_t sb_hmac_drbg_reseed
-    (sb_hmac_drbg_state_t drbg[static const 1],
-     const sb_byte_t* const entropy,
-     const size_t entropy_len,
-     const sb_byte_t* const additional,
-     const size_t additional_len)
+sb_error_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static const 1],
+                               const sb_byte_t* const entropy,
+                               const size_t entropy_len,
+                               const sb_byte_t* const additional,
+                               const size_t additional_len)
 {
+    sb_error_t err = 0;
+
     if (entropy_len < SB_HMAC_DRBG_MIN_ENTROPY_INPUT_LENGTH) {
-        return SB_HMAC_DRBG_ERR_INSUFFICIENT_ENTROPY;
+        err |= SB_ERROR_INSUFFICIENT_ENTROPY;
     }
 
     if (entropy_len > SB_HMAC_DRBG_MAX_ENTROPY_INPUT_LENGTH ||
         additional_len > SB_HMAC_DRBG_MAX_ADDITIONAL_INPUT_LENGTH) {
-        return SB_HMAC_DRBG_ERR_INPUT_TOO_LARGE;
+        err |= SB_ERROR_INPUT_TOO_LARGE;
+    }
+
+    if (err) {
+        return err;
     }
 
     const sb_byte_t* const a_vec[UPDATE_VECTORS] = {
@@ -78,22 +83,26 @@ sb_hmac_drbg_err_t sb_hmac_drbg_reseed
     const size_t alen_vec[UPDATE_VECTORS] = { entropy_len, additional_len, 0 };
     sb_hmac_drbg_update_vec(drbg, a_vec, alen_vec, 1);
     drbg->reseed_counter = 1;
-    return SB_HMAC_DRBG_SUCCESS;
+    return SB_SUCCESS;
 }
 
-_Bool sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
+sb_error_t sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
                                    drbg[static const 1], const size_t count)
 {
-    return drbg->reseed_counter + count >= SB_HMAC_DRBG_RESEED_INTERVAL;
+    if (drbg->reseed_counter + count >= SB_HMAC_DRBG_RESEED_INTERVAL) {
+        return SB_ERROR_RESEED_REQUIRED;
+    } else {
+        return 0;
+    }
 }
 
-sb_hmac_drbg_err_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const 1],
-                                     const sb_byte_t* const entropy,
-                                     size_t const entropy_len,
-                                     const sb_byte_t* const nonce,
-                                     size_t const nonce_len,
-                                     const sb_byte_t* const personalization,
-                                     size_t const personalization_len)
+sb_error_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const 1],
+                             const sb_byte_t* const entropy,
+                             size_t const entropy_len,
+                             const sb_byte_t* const nonce,
+                             size_t const nonce_len,
+                             const sb_byte_t* const personalization,
+                             size_t const personalization_len)
 {
     memset(drbg, 0, sizeof(sb_hmac_drbg_state_t));
 
@@ -102,16 +111,21 @@ sb_hmac_drbg_err_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const 1],
 
     memset(drbg->V, 0x01, SB_SHA256_SIZE);
 
+    sb_error_t err = 0;
+
     if (entropy_len < SB_HMAC_DRBG_MIN_ENTROPY_INPUT_LENGTH ||
         nonce_len < SB_HMAC_DRBG_MIN_NONCE_LENGTH) {
-        // we require more vespene gas
-        return SB_HMAC_DRBG_ERR_INSUFFICIENT_ENTROPY;
+        err |= SB_ERROR_INSUFFICIENT_ENTROPY;
     }
 
     if (entropy_len > SB_HMAC_DRBG_MAX_ENTROPY_INPUT_LENGTH ||
         nonce_len > SB_HMAC_DRBG_MAX_ENTROPY_INPUT_LENGTH ||
         personalization_len > SB_HMAC_DRBG_MAX_PERSONALIZATION_STRING_LENGTH) {
-        return SB_HMAC_DRBG_ERR_INPUT_TOO_LARGE;
+        err |= SB_ERROR_INPUT_TOO_LARGE;
+    }
+
+    if (err) {
+        return err;
     }
 
     const sb_byte_t* const a_vec[UPDATE_VECTORS] = {
@@ -126,17 +140,19 @@ sb_hmac_drbg_err_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const 1],
 
     drbg->reseed_counter = 1;
 
-    return SB_HMAC_DRBG_SUCCESS;
+    return SB_SUCCESS;
 }
 
-sb_hmac_drbg_err_t sb_hmac_drbg_generate_additional_vec
+sb_error_t sb_hmac_drbg_generate_additional_vec
     (sb_hmac_drbg_state_t drbg[static const 1],
      sb_byte_t* restrict output, size_t output_len,
      const sb_byte_t* const additional[static const SB_HMAC_DRBG_ADD_VECTOR_LEN],
      const size_t additional_len[static const SB_HMAC_DRBG_ADD_VECTOR_LEN])
 {
+    sb_error_t err = 0;
+
     if (output_len > SB_HMAC_DRBG_MAX_BYTES_PER_REQUEST) {
-        return SB_HMAC_DRBG_ERR_REQUEST_TOO_LARGE;
+        err |= SB_ERROR_REQUEST_TOO_LARGE;
     }
 
     size_t total_additional_len = 0;
@@ -145,11 +161,15 @@ sb_hmac_drbg_err_t sb_hmac_drbg_generate_additional_vec
     }
 
     if (total_additional_len > SB_HMAC_DRBG_MAX_ADDITIONAL_INPUT_LENGTH) {
-        return SB_HMAC_DRBG_ERR_INPUT_TOO_LARGE;
+        err |= SB_ERROR_INPUT_TOO_LARGE;
     }
 
     if (drbg->reseed_counter > SB_HMAC_DRBG_RESEED_INTERVAL) {
-        return SB_HMAC_DRBG_ERR_RESEED_REQUIRED;
+        err |= SB_ERROR_RESEED_REQUIRED;
+    }
+
+    if (err) {
+        return err;
     }
 
     if (total_additional_len > 0) {
@@ -172,13 +192,13 @@ sb_hmac_drbg_err_t sb_hmac_drbg_generate_additional_vec
     sb_hmac_drbg_update_vec(drbg, additional, additional_len,
                             total_additional_len > 0);
     drbg->reseed_counter++;
-    return SB_HMAC_DRBG_SUCCESS;
+
+    return SB_SUCCESS;
 }
 
-sb_hmac_drbg_err_t sb_hmac_drbg_generate
-    (sb_hmac_drbg_state_t drbg[static const 1],
-     sb_byte_t* const output,
-     size_t const output_len)
+sb_error_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static const 1],
+                                 sb_byte_t* const output,
+                                 size_t const output_len)
 {
     const sb_byte_t* additional[SB_HMAC_DRBG_ADD_VECTOR_LEN] = { NULL };
     const size_t additional_len[SB_HMAC_DRBG_ADD_VECTOR_LEN] = { 0 };
@@ -230,19 +250,19 @@ void sb_test_hmac_drbg(void)
     const sb_byte_t* add[SB_HMAC_DRBG_ADD_VECTOR_LEN] = { NULL };
     size_t add_len[SB_HMAC_DRBG_ADD_VECTOR_LEN] = { 0 };
     assert(sb_hmac_drbg_init(&drbg, TEST_E1, sizeof(TEST_E1), TEST_N1, sizeof
-    (TEST_N1), TEST_P1 + 1, sizeof(TEST_P1) - 1) == SB_HMAC_DRBG_SUCCESS);
+    (TEST_N1), TEST_P1 + 1, sizeof(TEST_P1) - 1) == SB_SUCCESS);
     add[0] = TEST_A1 + 1;
     add_len[0] = sizeof(TEST_A1) - 1;
     assert(
         sb_hmac_drbg_generate_additional_vec(&drbg, r, sizeof(TEST_R1),
                                              add, add_len) ==
-        SB_HMAC_DRBG_SUCCESS);
+            SB_SUCCESS);
     add[0] = TEST_AA1 + 1;
     add_len[0] = sizeof(TEST_AA1) - 1;
     assert(
         sb_hmac_drbg_generate_additional_vec(&drbg, r, sizeof(TEST_R1),
                                              add, add_len) ==
-        SB_HMAC_DRBG_SUCCESS);
+            SB_SUCCESS);
     assert(memcmp(r, TEST_R1, sizeof(TEST_R1)) == 0);
 }
 

@@ -25,14 +25,16 @@
 // see sb_types.h for the definition of sb_single_t and sb_double_t
 typedef sb_single_t sb_sw_private_t;
 typedef sb_single_t sb_sw_shared_secret_t;
-typedef sb_single_t sb_sw_compressed_public_t;
 typedef sb_single_t sb_sw_message_digest_t;
 typedef sb_double_t sb_sw_public_t;
 typedef sb_double_t sb_sw_signature_t;
 
 typedef enum sb_sw_curve_id_t {
     SB_SW_CURVE_P256 = 0,
-    SB_SW_CURVE_SECP256K1 = 1
+    SB_SW_CURVE_SECP256K1 = 1,
+#ifdef SB_TEST
+    SB_SW_CURVE_INVALID = 0x7FFFFFFF
+#endif
 } sb_sw_curve_id_t;
 
 // see sb_types.h for the definition of sb_data_endian_t
@@ -42,6 +44,18 @@ typedef enum sb_sw_curve_id_t {
 // structure. You may allocate different structures for each call or reuse
 // the same structure multiple times. The context is small (512 bytes) and
 // may be stack allocated.
+
+// All of the following functions return sb_error_t; see sb_types.h for the
+// definition of the error type and sb_error.h for the error values returned.
+// sb_error_t the bitwise or of multiple error values; you MUST test for
+// specific error values by checking whether the appropriate bit is set in
+// the return value. Two errors (CURVE_INVALID and RESEED_REQUIRED) are
+// returned "early", which is to say that no further computation is performed
+// if either of these errors is true. Otherwise, the function will run to
+// completion in constant time with respect to the non-curve inputs; if the
+// function produces output, the output returned will be junk if the return
+// value is not SB_SUCCESS. See sb_sw_valid_public_key and
+// sb_sw_verify_signature for notes on the return value of these functions.
 
 // sb_sw_generate_private_key:
 
@@ -60,11 +74,11 @@ typedef enum sb_sw_curve_id_t {
 // If you are unfamiliar with the [static 1] syntax, this declaration tells
 // the compiler that the passed pointer is non-NULL.
 
-extern _Bool sb_sw_generate_private_key(sb_sw_context_t context[static 1],
-                                        sb_sw_private_t private[static 1],
-                                        sb_hmac_drbg_state_t drbg[static 1],
-                                        sb_sw_curve_id_t curve,
-                                        sb_data_endian_t e);
+extern sb_error_t sb_sw_generate_private_key(sb_sw_context_t context[static 1],
+                                             sb_sw_private_t private[static 1],
+                                             sb_hmac_drbg_state_t drbg[static 1],
+                                             sb_sw_curve_id_t curve,
+                                             sb_data_endian_t e);
 
 // sb_sw_compute_private_key:
 
@@ -73,22 +87,23 @@ extern _Bool sb_sw_generate_private_key(sb_sw_context_t context[static 1],
 // invalid, the private key supplied is invalid, or if the optionally
 // supplied drbg requires reseeding.
 
-extern _Bool sb_sw_compute_public_key(sb_sw_context_t context[static 1],
-                                      sb_sw_public_t public[static 1],
-                                      const sb_sw_private_t private[static 1],
-                                      sb_hmac_drbg_state_t* drbg,
-                                      sb_sw_curve_id_t curve,
-                                      sb_data_endian_t e);
+extern sb_error_t sb_sw_compute_public_key(sb_sw_context_t context[static 1],
+                                           sb_sw_public_t public[static 1],
+                                           const sb_sw_private_t private[static 1],
+                                           sb_hmac_drbg_state_t* drbg,
+                                           sb_sw_curve_id_t curve,
+                                           sb_data_endian_t e);
 
 // sb_sw_valid_public_key:
 
-// Returns true if the supplied public key is valid. Fails if the curve
-// supplied is invalid.
+// Returns SB_SUCCESS if the supplied public key is valid or
+// SB_ERROR_INVALID_PUBLIC_KEY exclusively if the key supplied is invalid.
+// Fails if the curve supplied is invalid.
 
-extern _Bool sb_sw_valid_public_key(sb_sw_context_t context[static 1],
-                                    const sb_sw_public_t public[static 1],
-                                    sb_sw_curve_id_t curve,
-                                    sb_data_endian_t e);
+extern sb_error_t sb_sw_valid_public_key(sb_sw_context_t context[static 1],
+                                         const sb_sw_public_t public[static 1],
+                                         sb_sw_curve_id_t curve,
+                                         sb_data_endian_t e);
 
 // sb_sw_shared_secret:
 
@@ -103,13 +118,13 @@ extern _Bool sb_sw_valid_public_key(sb_sw_context_t context[static 1],
 // Fails if the supplied curve, private, or public keys are invalid, or if
 // the optionally supplied drbg requires reseeding.
 
-extern _Bool sb_sw_shared_secret(sb_sw_context_t context[static 1],
-                                 sb_sw_shared_secret_t secret[static 1],
-                                 const sb_sw_private_t private[static 1],
-                                 const sb_sw_public_t public[static 1],
-                                 sb_hmac_drbg_state_t* drbg,
-                                 sb_sw_curve_id_t curve,
-                                 sb_data_endian_t e);
+extern sb_error_t sb_sw_shared_secret(sb_sw_context_t context[static 1],
+                                      sb_sw_shared_secret_t secret[static 1],
+                                      const sb_sw_private_t private[static 1],
+                                      const sb_sw_public_t public[static 1],
+                                      sb_hmac_drbg_state_t* drbg,
+                                      sb_sw_curve_id_t curve,
+                                      sb_data_endian_t e);
 
 // sb_sw_sign_message_digest
 
@@ -121,29 +136,30 @@ extern _Bool sb_sw_shared_secret(sb_sw_context_t context[static 1],
 // generation is used instead. Fails if the supplied curve or private key are
 // invalid, or if the optionally supplied drbg requires reseeding.
 
-extern _Bool sb_sw_sign_message_digest(sb_sw_context_t context[static 1],
-                                       sb_sw_signature_t signature[static 1],
-                                       const sb_sw_private_t private[static 1],
-                                       const sb_sw_message_digest_t
-                                       message[static 1],
-                                       sb_hmac_drbg_state_t* drbg,
-                                       sb_sw_curve_id_t curve,
-                                       sb_data_endian_t e);
+extern sb_error_t sb_sw_sign_message_digest(sb_sw_context_t context[static 1],
+                                            sb_sw_signature_t signature[static 1],
+                                            const sb_sw_private_t private[static 1],
+                                            const sb_sw_message_digest_t
+                                            message[static 1],
+                                            sb_hmac_drbg_state_t* drbg,
+                                            sb_sw_curve_id_t curve,
+                                            sb_data_endian_t e);
 
 // sb_sw_verify_signature
 
-// Verifies the supplied message digest signature. Fails if the supplied
-// curve or public key is invalid, if the message signature is invalid, or
-// if the optionally supplied drbg requires reseeding.
+// Verifies the supplied message digest signature. Returns SB_SUCCESS if the
+// signature is valid or SB_ERROR_SIGNATURE_INVALID exclusively if the signature
+// is invalid. Fails if the supplied curve or public key is invalid or if the
+// optionally supplied drbg requires reseeding.
 
-extern _Bool sb_sw_verify_signature(sb_sw_context_t context[static 1],
-                                    const sb_sw_signature_t signature[static 1],
-                                    const sb_sw_public_t public[static 1],
-                                    const sb_sw_message_digest_t
-                                    message[static 1],
-                                    sb_hmac_drbg_state_t* drbg,
-                                    sb_sw_curve_id_t curve,
-                                    sb_data_endian_t e);
+extern sb_error_t sb_sw_verify_signature(sb_sw_context_t context[static 1],
+                                         const sb_sw_signature_t signature[static 1],
+                                         const sb_sw_public_t public[static 1],
+                                         const sb_sw_message_digest_t
+                                         message[static 1],
+                                         sb_hmac_drbg_state_t* drbg,
+                                         sb_sw_curve_id_t curve,
+                                         sb_data_endian_t e);
 
 #ifdef SB_TEST
 
@@ -165,6 +181,7 @@ extern void sb_test_sign_iter(void);
 extern void sb_test_sign_iter_k256(void);
 extern void sb_test_shared_iter(void);
 extern void sb_test_shared_iter_k256(void);
+extern void sb_test_sw_early_errors(void);
 #endif
 
 #endif

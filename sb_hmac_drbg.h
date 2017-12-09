@@ -19,6 +19,7 @@
 #ifndef SB_HMAC_DRBG_H
 #define SB_HMAC_DRBG_H
 
+#include "sb_types.h"
 #include "sb_hmac_sha256.h"
 
 // Per SP 800-57 Part 1 Rev. 4, 5.6.1: HMAC-SHA-256 has security strength >=256
@@ -78,42 +79,34 @@
 #define SB_HMAC_DRBG_MAX_ADDITIONAL_INPUT_LENGTH SB_HMAC_DRBG_MAX_ENTROPY_INPUT_LENGTH
 #define SB_HMAC_DRBG_MAX_PERSONALIZATION_STRING_LENGTH SB_HMAC_DRBG_MAX_ENTROPY_INPUT_LENGTH
 
-typedef enum {
-    SB_HMAC_DRBG_SUCCESS = 0,
-    SB_HMAC_DRBG_ERR_INSUFFICIENT_ENTROPY,
-    SB_HMAC_DRBG_ERR_INPUT_TOO_LARGE,
-    SB_HMAC_DRBG_ERR_REQUEST_TOO_LARGE,
-    SB_HMAC_DRBG_ERR_RESEED_REQUIRED
-} sb_hmac_drbg_err_t;
-
 typedef struct sb_hmac_drbg_state_t {
     sb_hmac_sha256_state_t hmac;
     sb_byte_t V[SB_SHA256_SIZE];
     size_t reseed_counter;
 } sb_hmac_drbg_state_t;
 
-extern sb_hmac_drbg_err_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static 1],
-                                            const sb_byte_t* entropy,
-                                            size_t entropy_len,
-                                            const sb_byte_t* nonce,
-                                            size_t nonce_len,
-                                            const sb_byte_t* personalization,
-                                            size_t personalization_len);
+extern sb_error_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static 1],
+                                    const sb_byte_t* entropy,
+                                    size_t entropy_len,
+                                    const sb_byte_t* nonce,
+                                    size_t nonce_len,
+                                    const sb_byte_t* personalization,
+                                    size_t personalization_len);
 
-extern sb_hmac_drbg_err_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static 1],
-                                              const sb_byte_t* entropy,
-                                              size_t entropy_len,
-                                              const sb_byte_t* additional,
-                                              size_t additional_len);
+extern sb_error_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static 1],
+                                      const sb_byte_t* entropy,
+                                      size_t entropy_len,
+                                      const sb_byte_t* additional,
+                                      size_t additional_len);
 
-// Returns true iff one of the next 'count' sb_hmac_drbg_generate calls will
-// return SB_HMAC_DRBG_ERR_RESEED_REQUIRED
-extern _Bool sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
-                                          drbg[static 1], size_t count);
+// Returns SB_HMAC_DRBG_ERR_RESEED_REQUIRED iff one of the next `count`
+// sb_hmac_drbg_generate calls will return SB_HMAC_DRBG_ERR_RESEED_REQUIRED
+extern sb_error_t sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
+                                               drbg[static 1], size_t count);
 
-extern sb_hmac_drbg_err_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static 1],
-                                                sb_byte_t* output,
-                                                size_t output_len);
+extern sb_error_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static 1],
+                                        sb_byte_t* output,
+                                        size_t output_len);
 
 // Generate with a vector of additional data, which can be supplied in up to
 // SB_HMAC_DRBG_ADD_VECTOR_LEN pointers. If any additional data is supplied,
@@ -122,7 +115,7 @@ extern sb_hmac_drbg_err_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static
 #define SB_HMAC_DRBG_ADD_VECTOR_LEN 3
 
 // output must NOT alias any part of the additional data
-extern sb_hmac_drbg_err_t sb_hmac_drbg_generate_additional_vec
+extern sb_error_t sb_hmac_drbg_generate_additional_vec
     (sb_hmac_drbg_state_t drbg[static 1],
      sb_byte_t* restrict output, size_t output_len,
      const sb_byte_t* const additional[static SB_HMAC_DRBG_ADD_VECTOR_LEN],

@@ -38,6 +38,7 @@ int main(int argc, char** argv)
         TEST(mod_expt_p);
         TEST(exceptions);
         TEST(sw_point_mult_add);
+        TEST(sw_early_errors);
         TEST(valid_public);
         TEST(compute_public);
         TEST(shared_secret);

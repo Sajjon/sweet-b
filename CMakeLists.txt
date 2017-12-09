@@ -52,8 +52,8 @@ add_library(sweet_b SHARED ${SB_SOURCES})
 
 set_target_properties(sweet_b PROPERTIES
         VERSION ${PROJECT_VERSION}
-        PUBLIC_HEADER sb_sw_lib.h sb_fe.h sb_hmac_drbg.h sb_hmac_sha256.h
-        sb_sha256.h sb_sw_context.h sb_types.h)
+        PUBLIC_HEADER "sb_sw_lib.h sb_fe.h sb_hmac_drbg.h sb_hmac_sha256.h
+        sb_sha256.h sb_sw_context.h sb_types.h sb_error.h")
 
 install(TARGETS sweet_b
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

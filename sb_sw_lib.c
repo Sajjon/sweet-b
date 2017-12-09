@@ -172,8 +172,9 @@ static void sb_sw_point_co_z_conj_add_zup(sb_sw_context_t c[static const 1],
 // Co-Z addition with update, with Z-update computation
 // Sets t6 to x2 - x1 before calling sb_sw_point_co_z_add_update_zup
 // Cost: 6MM + 7A
-static inline void sb_sw_point_co_z_add_update(sb_sw_context_t c[static const 1],
-                                               const sb_sw_curve_t s[static const 1])
+static inline void
+sb_sw_point_co_z_add_update(sb_sw_context_t c[static const 1],
+                            const sb_sw_curve_t s[static const 1])
 {
     sb_fe_mod_sub(C_T6(c), C_X2(c), C_X1(c), s->p); // t6 = x2 - x1 = Z' / Z
     sb_sw_point_co_z_add_update_zup(c, s);
@@ -857,19 +858,23 @@ static const sb_sw_curve_t* sb_sw_curve_from_id(sb_sw_curve_id_t const curve)
             return &SB_CURVE_P256;
         case SB_SW_CURVE_SECP256K1:
             return &SB_CURVE_SECP256K1;
+#ifdef SB_TEST
+        case SB_SW_CURVE_INVALID:
+            break;
+#endif
     }
     // Huh?
     return NULL;
 }
 
 // Initial Z generation for Z blinding (Coron's third countermeasure)
-static _Bool sb_sw_generate_z(sb_sw_context_t c[static const 1],
-                              sb_hmac_drbg_state_t* const drbg,
-                              const sb_byte_t* const d1, const size_t l1,
-                              const sb_byte_t* const d2, const size_t l2,
-                              const sb_byte_t* const d3, const size_t l3)
+static sb_error_t sb_sw_generate_z(sb_sw_context_t c[static const 1],
+                                   sb_hmac_drbg_state_t* const drbg,
+                                   const sb_byte_t* const d1, const size_t l1,
+                                   const sb_byte_t* const d2, const size_t l2,
+                                   const sb_byte_t* const d3, const size_t l3)
 {
-    _Bool res = 1;
+    sb_error_t err = 0;
     if (drbg) {
         // Use the supplied data as additional input to the DRBG
         const sb_byte_t* const add[SB_HMAC_DRBG_ADD_VECTOR_LEN] = {
@@ -880,47 +885,45 @@ static _Bool sb_sw_generate_z(sb_sw_context_t c[static const 1],
             l1, l2, l3
         };
 
-        res &=
-            (sb_hmac_drbg_generate_additional_vec(drbg, c->buf,
-                                                  SB_ELEM_BYTES, add, add_len)
-             == SB_HMAC_DRBG_SUCCESS);
+        err |= sb_hmac_drbg_generate_additional_vec(drbg, c->buf, SB_ELEM_BYTES,
+                                                    add, add_len);
     } else {
         // Seed the HMAC-DRBG with the input supplied
-        res &= (sb_hmac_drbg_init(&c->drbg_state,
-                                  d1, l1,
-                                  d2, l2,
-                                  d3, l3)
-                == SB_HMAC_DRBG_SUCCESS);
+        err |= sb_hmac_drbg_init(&c->drbg_state,
+                                 d1, l1,
+                                 d2, l2,
+                                 d3, l3);
 
-        res &=
-            (sb_hmac_drbg_generate(&c->drbg_state, c->buf, SB_ELEM_BYTES)
-             == SB_HMAC_DRBG_SUCCESS);
+        err |= sb_hmac_drbg_generate(&c->drbg_state, c->buf, SB_ELEM_BYTES);
     }
 
     sb_fe_from_bytes(MULT_Z(c), c->buf, SB_DATA_ENDIAN_BIG);
-    return res;
+    return err;
 }
 
 //// PUBLIC API:
 
-_Bool sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
-                                 sb_sw_private_t private[static const 1],
-                                 sb_hmac_drbg_state_t drbg[static const 1],
-                                 sb_sw_curve_id_t const curve,
-                                 sb_data_endian_t const e)
+sb_error_t sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
+                                      sb_sw_private_t private[static const 1],
+                                      sb_hmac_drbg_state_t drbg[static const 1],
+                                      sb_sw_curve_id_t const curve,
+                                      sb_data_endian_t const e)
 {
-    _Bool res = 1;
+    sb_error_t err = 0;
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
+
     if (!s) {
-        return 0;
+        err |= SB_ERROR_CURVE_INVALID;
     }
 
     // Bail out early if the DRBG needs to be reseeded
     // It takes two generate calls to generate a private key
-    if (sb_hmac_drbg_reseed_required(drbg, 2)) {
-        return 0;
+    err |= sb_hmac_drbg_reseed_required(drbg, 2);
+
+    if (err) {
+        return err;
     }
 
     // With P-256, the chance of one random scalar being invalid is <2^-32
@@ -928,13 +931,9 @@ _Bool sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
     // With secp256k1, the chance of one random scalar being invalid is <2^-128!
     // Assume that it's OK to fail if both scalars generated are invalid.
 
-    res &=
-        (sb_hmac_drbg_generate(drbg, &ctx->buf[0], SB_ELEM_BYTES)
-         == SB_HMAC_DRBG_SUCCESS);
+    err |= sb_hmac_drbg_generate(drbg, &ctx->buf[0], SB_ELEM_BYTES);
 
-    res &= (
-        sb_hmac_drbg_generate(drbg, &ctx->buf[SB_ELEM_BYTES], SB_ELEM_BYTES)
-        == SB_HMAC_DRBG_SUCCESS);
+    err |= sb_hmac_drbg_generate(drbg, &ctx->buf[SB_ELEM_BYTES], SB_ELEM_BYTES);
 
     sb_fe_from_bytes(MULT_K(ctx), &ctx->buf[0], e);
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[SB_ELEM_BYTES], e);
@@ -942,34 +941,37 @@ _Bool sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
     _Bool k1v = sb_sw_scalar_valid(MULT_K(ctx), s);
     sb_fe_ctswap((sb_word_t) k1v ^ 1, MULT_K(ctx), MULT_Z(ctx));
 
-    res &= sb_sw_scalar_valid(MULT_K(ctx), s);
+    err |= SB_ERROR_IF(DRBG_FAILURE, !sb_sw_scalar_valid(MULT_K(ctx), s));
 
     sb_fe_to_bytes(private->bytes, MULT_K(ctx), e);
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
-    return res;
+    return err;
 }
 
-_Bool sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
-                               sb_sw_public_t public[static const 1],
-                               const sb_sw_private_t private[static const 1],
-                               sb_hmac_drbg_state_t* const drbg,
-                               const sb_sw_curve_id_t curve,
-                               const sb_data_endian_t e)
+sb_error_t sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
+                                    sb_sw_public_t public[static const 1],
+                                    const sb_sw_private_t private[static const 1],
+                                    sb_hmac_drbg_state_t* const drbg,
+                                    const sb_sw_curve_id_t curve,
+                                    const sb_data_endian_t e)
 {
+    sb_error_t err = 0;
     memset(ctx, 0, sizeof(sb_sw_context_t));
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
-        return 0;
+        err |= SB_ERROR_CURVE_INVALID;
     }
 
-    // Bail out early if the DRBG needs to be reseeded
-    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 1)) {
-        return 0;
+    // Bail out early if the DRBG needs to be reseededarly
+    if (drbg != NULL) {
+        err |= sb_hmac_drbg_reseed_required(drbg, 1);
     }
 
-    _Bool res = 1;
+    if (err) {
+        return err;
+    }
 
     // This is cheating: the private key isn't enough entropy to seed a
     // HMAC-DRBG with, so it's used as both entropy and nonce when no DRBG is
@@ -980,72 +982,84 @@ _Bool sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
     // protection at a higher security level than the underlying HMAC (which
     // is the same security level as our inputs).
 
-    res &= sb_sw_generate_z(ctx, drbg, private->bytes, SB_ELEM_BYTES,
+    err |= sb_sw_generate_z(ctx, drbg, private->bytes, SB_ELEM_BYTES,
                             private->bytes, SB_ELEM_BYTES, NULL, 0);
 
     sb_fe_from_bytes(MULT_K(ctx), private->bytes, e);
-    res &= sb_sw_scalar_valid(MULT_K(ctx), s);
+    err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
+                       !sb_sw_scalar_valid(MULT_K(ctx), s));
 
     sb_sw_point_mult(ctx, s->gr, s);
 
     // This should not occur with valid scalars.
-    res &= !(sb_fe_equal(C_X1(ctx), &s->p->p) &
-             sb_fe_equal(C_Y1(ctx), &s->p->p));
+    err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
+                       (sb_fe_equal(C_X1(ctx), &s->p->p) &
+                        sb_fe_equal(C_Y1(ctx), &s->p->p)));
 
     sb_fe_to_bytes(public->bytes, C_X1(ctx), e);
     sb_fe_to_bytes(public->bytes + SB_ELEM_BYTES, C_Y1(ctx), e);
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
-    return res;
+    return err;
 }
 
-_Bool sb_sw_valid_public_key(sb_sw_context_t ctx[static const 1],
-                             const sb_sw_public_t public[static const 1],
-                             const sb_sw_curve_id_t curve,
-                             const sb_data_endian_t e)
+sb_error_t sb_sw_valid_public_key(sb_sw_context_t ctx[static const 1],
+                                  const sb_sw_public_t public[static const 1],
+                                  const sb_sw_curve_id_t curve,
+                                  const sb_data_endian_t e)
 {
+    sb_error_t err = 0;
+
     memset(ctx, 0, sizeof(sb_sw_context_t));
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
-        return 0;
+        err |= SB_ERROR_CURVE_INVALID;
+    }
+
+    if (err) {
+        return err;
     }
 
     sb_fe_from_bytes(&MULT_POINT(ctx)[0], public->bytes, e);
     sb_fe_from_bytes(&MULT_POINT(ctx)[1], public->bytes + SB_ELEM_BYTES, e);
 
-    _Bool res = sb_sw_point_valid(MULT_POINT(ctx), ctx, s);
+    err |= SB_ERROR_IF(PUBLIC_KEY_INVALID,
+                       !sb_sw_point_valid(MULT_POINT(ctx), ctx, s));
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
-    return res;
+    return err;
 }
 
-_Bool sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
-                          sb_sw_shared_secret_t secret[static const 1],
-                          const sb_sw_private_t private[static const 1],
-                          const sb_sw_public_t public[static const 1],
-                          sb_hmac_drbg_state_t* const drbg,
-                          const sb_sw_curve_id_t curve,
-                          const sb_data_endian_t e)
+sb_error_t sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
+                               sb_sw_shared_secret_t secret[static const 1],
+                               const sb_sw_private_t private[static const 1],
+                               const sb_sw_public_t public[static const 1],
+                               sb_hmac_drbg_state_t* const drbg,
+                               const sb_sw_curve_id_t curve,
+                               const sb_data_endian_t e)
 {
+    sb_error_t err = 0;
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
-        return 0;
+        err |= SB_ERROR_CURVE_INVALID;
     }
 
     // Bail out early if the DRBG needs to be reseeded
-    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 1)) {
-        return 0;
+    if (drbg != NULL) {
+        err |= sb_hmac_drbg_reseed_required(drbg, 1);
     }
 
-    _Bool res = 1;
+    if (err) {
+        return err;
+    }
 
     // Only the X coordinate of the public key is used as the nonce, since
     // the Y coordinate is not an independent input.
-    res &= sb_sw_generate_z(ctx, drbg, private->bytes, SB_ELEM_BYTES,
+    err |= sb_sw_generate_z(ctx, drbg, private->bytes, SB_ELEM_BYTES,
                             public->bytes, SB_ELEM_BYTES,
                             NULL, 0);
 
@@ -1054,8 +1068,11 @@ _Bool sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
     sb_fe_from_bytes(&MULT_POINT(ctx)[0], public->bytes, e);
     sb_fe_from_bytes(&MULT_POINT(ctx)[1], public->bytes + SB_ELEM_BYTES, e);
 
-    res &= sb_sw_scalar_valid(MULT_K(ctx), sb_sw_curve_from_id(curve));
-    res &= sb_sw_point_valid(MULT_POINT(ctx), ctx, s);
+    err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
+                       !sb_sw_scalar_valid(MULT_K(ctx),
+                                           sb_sw_curve_from_id(curve)));
+    err |= SB_ERROR_IF(PUBLIC_KEY_INVALID,
+                       !sb_sw_point_valid(MULT_POINT(ctx), ctx, s));
 
     // Pre-multiply the point's x and y by R
     sb_fe_mont_mult(C_X1(ctx), &MULT_POINT(ctx)[0], &s->p->r2_mod_p, s->p);
@@ -1066,44 +1083,49 @@ _Bool sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
     sb_sw_point_mult(ctx, MULT_POINT(ctx), s);
 
     // This should never occur with a valid private scalar.
-    res &= !(sb_fe_equal(C_X1(ctx), &s->p->p) &
-             sb_fe_equal(C_Y1(ctx), &s->p->p));
+    err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
+                       (sb_fe_equal(C_X1(ctx), &s->p->p) &
+                        sb_fe_equal(C_Y1(ctx), &s->p->p)));
 
     sb_fe_to_bytes(secret->bytes, C_X1(ctx), e);
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
-    return res;
+    return err;
 }
 
-_Bool sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
-                                sb_sw_signature_t signature[static const 1],
-                                const sb_sw_private_t private[static const 1],
-                                const sb_sw_message_digest_t message[static const 1],
-                                sb_hmac_drbg_state_t* const drbg,
-                                const sb_sw_curve_id_t curve,
-                                const sb_data_endian_t e)
+sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
+                                     sb_sw_signature_t signature[static const 1],
+                                     const sb_sw_private_t private[static const 1],
+                                     const sb_sw_message_digest_t message[static const 1],
+                                     sb_hmac_drbg_state_t* const drbg,
+                                     const sb_sw_curve_id_t curve,
+                                     const sb_data_endian_t e)
 {
+    sb_error_t err = 0;
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
-        return 0;
+        err |= SB_ERROR_CURVE_INVALID;
     }
 
     // Bail out early if the DRBG needs to be reseeded
     // It takes two calls to generate a per-message secret and one to
     // generate an initial Z
-    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 3)) {
-        return 0;
+    if (drbg != NULL) {
+        err |= sb_hmac_drbg_reseed_required(drbg, 3);
     }
 
-    _Bool res = 1;
+    if (err) {
+        return err;
+    }
 
     sb_fe_from_bytes(SIGN_PRIVATE(ctx), private->bytes, e);
     sb_fe_from_bytes(SIGN_MESSAGE(ctx), message->bytes, e);
 
-    res &= sb_sw_scalar_valid(SIGN_PRIVATE(ctx), s);
+    err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
+                       !sb_sw_scalar_valid(SIGN_PRIVATE(ctx), s));
 
     // Reduce the message modulo N
     sb_fe_mod_sub(SIGN_MESSAGE(ctx), SIGN_MESSAGE(ctx), &s->n->p, s->n);
@@ -1122,15 +1144,12 @@ _Bool sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
             SB_ELEM_BYTES, SB_ELEM_BYTES
         };
 
-        res &=
-            (sb_hmac_drbg_generate_additional_vec(drbg, &ctx->buf[0],
-                                                  SB_ELEM_BYTES, add, add_len)
-             == SB_HMAC_DRBG_SUCCESS);
+        err |= sb_hmac_drbg_generate_additional_vec(drbg, &ctx->buf[0],
+                                                    SB_ELEM_BYTES, add,
+                                                    add_len);
 
-        res &= (
-            sb_hmac_drbg_generate(&ctx->drbg_state, &ctx->buf[SB_ELEM_BYTES],
-                                  SB_ELEM_BYTES)
-            == SB_HMAC_DRBG_SUCCESS);
+        err |= sb_hmac_drbg_generate(&ctx->drbg_state, &ctx->buf[SB_ELEM_BYTES],
+                                     SB_ELEM_BYTES);
 
     } else {
         // RFC6979 deterministic signature generation
@@ -1142,20 +1161,15 @@ _Bool sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
         sb_fe_to_bytes(&ctx->buf[SB_ELEM_BYTES], SIGN_MESSAGE(ctx),
                        SB_DATA_ENDIAN_BIG);
 
-        res &=
-            (sb_hmac_drbg_init(&ctx->drbg_state, &ctx->buf[0], SB_ELEM_BYTES,
-                               &ctx->buf[SB_ELEM_BYTES], SB_ELEM_BYTES, NULL, 0)
-             == SB_HMAC_DRBG_SUCCESS);
+        err |=
+            sb_hmac_drbg_init(&ctx->drbg_state, &ctx->buf[0], SB_ELEM_BYTES,
+                              &ctx->buf[SB_ELEM_BYTES], SB_ELEM_BYTES, NULL, 0);
 
-        res &=
-            (sb_hmac_drbg_generate(&ctx->drbg_state, &ctx->buf[0],
-                                   SB_ELEM_BYTES)
-             == SB_HMAC_DRBG_SUCCESS);
+        err |= sb_hmac_drbg_generate(&ctx->drbg_state, &ctx->buf[0],
+                                     SB_ELEM_BYTES);
 
-        res &= (
-            sb_hmac_drbg_generate(&ctx->drbg_state, &ctx->buf[SB_ELEM_BYTES],
-                                  SB_ELEM_BYTES)
-            == SB_HMAC_DRBG_SUCCESS);
+        err |= sb_hmac_drbg_generate(&ctx->drbg_state, &ctx->buf[SB_ELEM_BYTES],
+                                     SB_ELEM_BYTES);
     }
 
     sb_fe_from_bytes(MULT_K(ctx), &ctx->buf[0], SB_DATA_ENDIAN_BIG);
@@ -1164,8 +1178,10 @@ _Bool sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
     if (drbg) {
         // k = c + 1
         // if this overflows, the value was invalid to begin with
-        res &= !sb_fe_add(MULT_K(ctx), MULT_K(ctx), &SB_FE_ONE);
-        res &= !sb_fe_add(MULT_Z(ctx), MULT_Z(ctx), &SB_FE_ONE);
+        err |= SB_ERROR_IF(DRBG_FAILURE,
+                           sb_fe_add(MULT_K(ctx), MULT_K(ctx), &SB_FE_ONE));
+        err |= SB_ERROR_IF(DRBG_FAILURE,
+                           sb_fe_add(MULT_Z(ctx), MULT_Z(ctx), &SB_FE_ONE));
     }
 
     // Note that this step rejects the scalars -2, -1, and 1, which both FIPS
@@ -1176,44 +1192,47 @@ _Bool sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
     _Bool k1v = sb_sw_scalar_valid(MULT_K(ctx), s);
     sb_fe_ctswap((sb_word_t) k1v ^ 1, MULT_K(ctx), MULT_Z(ctx));
 
-    res &= sb_sw_scalar_valid(MULT_K(ctx), s);
+    err |= SB_ERROR_IF(DRBG_FAILURE, !sb_sw_scalar_valid(MULT_K(ctx), s));
 
     // And now generate an initial Z, which is always assumed to be valid
-    res &= (sb_hmac_drbg_generate((drbg ? drbg : &ctx->drbg_state),
-                                  &ctx->buf[0], SB_ELEM_BYTES)
-            == SB_HMAC_DRBG_SUCCESS);
+    err |= sb_hmac_drbg_generate((drbg ? drbg : &ctx->drbg_state),
+                                 &ctx->buf[0], SB_ELEM_BYTES);
 
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[0], SB_DATA_ENDIAN_BIG);
 
-    res &= sb_sw_sign(ctx, s);
+    // If sb_sw_sign fails, the DRBG produced an extremely low-probability k
+    err |= SB_ERROR_IF(DRBG_FAILURE, !sb_sw_sign(ctx, s));
 
     sb_fe_to_bytes(signature->bytes, C_X2(ctx), e);
     sb_fe_to_bytes(signature->bytes + SB_ELEM_BYTES, C_Y2(ctx), e);
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
-    return res;
+    return err;
 }
 
-_Bool sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
-                             const sb_sw_signature_t signature[static const 1],
-                             const sb_sw_public_t public[static const 1],
-                             const sb_sw_message_digest_t message[static const 1],
-                             sb_hmac_drbg_state_t* const drbg,
-                             const sb_sw_curve_id_t curve,
-                             const sb_data_endian_t e)
+sb_error_t sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
+                                  const sb_sw_signature_t signature[static const 1],
+                                  const sb_sw_public_t public[static const 1],
+                                  const sb_sw_message_digest_t message[static const 1],
+                                  sb_hmac_drbg_state_t* const drbg,
+                                  const sb_sw_curve_id_t curve,
+                                  const sb_data_endian_t e)
 {
+    sb_error_t err = 0;
     memset(ctx, 0, sizeof(sb_sw_context_t));
     const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
     if (!s) {
-        return 0;
+        err |= SB_ERROR_CURVE_INVALID;
     }
 
     // Bail out early if the DRBG needs to be reseeded
-    if (drbg != NULL && sb_hmac_drbg_reseed_required(drbg, 1)) {
-        return 0;
+    if (drbg != NULL) {
+        err |= sb_hmac_drbg_reseed_required(drbg, 1);
     }
 
-    _Bool res = 1;
+    if (err) {
+        return err;
+    }
 
     // Only the X coordinate of the public key is used as input, since
     // the Y coordinate is not an independent input. When no DRBG is
@@ -1221,7 +1240,7 @@ _Bool sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
     // division here is somewhat arbitrary since it's just concatenated as
     // HMAC input with the entropy and nonce. When a DRBG is supplied, the
     // public key, signature, and message are all used as additional input.
-    res &= sb_sw_generate_z(ctx, drbg, public->bytes, SB_ELEM_BYTES,
+    err |= sb_sw_generate_z(ctx, drbg, public->bytes, SB_ELEM_BYTES,
                             signature->bytes, 2 * SB_ELEM_BYTES,
                             message->bytes, SB_ELEM_BYTES);
 
@@ -1231,11 +1250,13 @@ _Bool sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
 
     sb_fe_from_bytes(&MULT_POINT(ctx)[0], public->bytes, e);
     sb_fe_from_bytes(&MULT_POINT(ctx)[1], public->bytes + SB_ELEM_BYTES, e);
-    res &= sb_sw_point_valid(MULT_POINT(ctx), ctx, s);
-    res &= sb_sw_verify(ctx, s);
+    err |= SB_ERROR_IF(PUBLIC_KEY_INVALID,
+                       !sb_sw_point_valid(MULT_POINT(ctx), ctx, s));
+
+    err |= SB_ERROR_IF(SIGNATURE_INVALID, !sb_sw_verify(ctx, s));
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
-    return res;
+    return err;
 }
 
 #ifdef SB_TEST
@@ -1276,7 +1297,8 @@ void sb_test_shared_secret(void)
     sb_sw_shared_secret_t out;
     sb_sw_context_t ct;
     assert(sb_sw_shared_secret(&ct, &out, &TEST_PRIV_1, &TEST_PUB_1, NULL,
-                               SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG) == 1);
+                               SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG) ==
+           SB_SUCCESS);
     assert(memcmp(&out, &secret, sizeof(secret)) == 0);
 }
 
@@ -1308,7 +1330,7 @@ void sb_test_compute_public(void)
     sb_sw_context_t ct;
     assert(sb_sw_compute_public_key(&ct, &pub, &TEST_PRIV_2, NULL,
                                     SB_SW_CURVE_P256,
-                                    SB_DATA_ENDIAN_BIG) == 1);
+                                    SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(memcmp(&pub, &TEST_PUB_2, sizeof(pub)) == 0);
 }
 
@@ -1316,11 +1338,12 @@ void sb_test_valid_public(void)
 {
     sb_sw_context_t ct;
     assert(sb_sw_valid_public_key(&ct, &TEST_PUB_1, SB_SW_CURVE_P256,
-                                  SB_DATA_ENDIAN_BIG) == 1);
+                                  SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(sb_sw_valid_public_key(&ct, &TEST_PUB_2, SB_SW_CURVE_P256,
-                                  SB_DATA_ENDIAN_BIG) == 1);
+                                  SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(sb_sw_valid_public_key(&ct, &TEST_PUB_2, SB_SW_CURVE_P256,
-                                  SB_DATA_ENDIAN_LITTLE) == 0);
+                                  SB_DATA_ENDIAN_LITTLE)
+           == SB_ERROR_PUBLIC_KEY_INVALID);
 }
 
 static const sb_sw_message_digest_t TEST_MESSAGE = {
@@ -1350,8 +1373,8 @@ void sb_test_sign_rfc6979(void)
     sb_sw_context_t ct;
     sb_sw_signature_t out;
     assert(sb_sw_sign_message_digest(&ct, &out, &TEST_PRIV_2, &TEST_MESSAGE,
-                                     NULL, SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG)
-           == 1);
+                                     NULL, SB_SW_CURVE_P256,
+                                     SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(memcmp(&TEST_SIG, &out, sizeof(TEST_SIG)) == 0);
 }
 
@@ -1360,15 +1383,21 @@ void sb_test_verify(void)
     sb_sw_context_t ct;
     assert(sb_sw_verify_signature(&ct, &TEST_SIG, &TEST_PUB_2, &TEST_MESSAGE,
                                   NULL, SB_SW_CURVE_P256,
-                                  SB_DATA_ENDIAN_BIG) == 1);
+                                  SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
 }
 
 void sb_test_verify_invalid(void)
 {
     sb_sw_context_t ct;
     assert(sb_sw_verify_signature(&ct, &TEST_SIG, &TEST_PUB_1, &TEST_MESSAGE,
-                                  NULL, SB_SW_CURVE_P256,
-                                  SB_DATA_ENDIAN_BIG) == 0);
+                                  NULL, SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG)
+           == SB_ERROR_SIGNATURE_INVALID);
+
+    // This tests that verifying a signature with an invalid public key will
+    // fail with both error indications:
+    assert(sb_sw_verify_signature(&ct, &TEST_SIG, &TEST_SIG, &TEST_MESSAGE,
+                                  NULL, SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG)
+           == (SB_ERROR_SIGNATURE_INVALID | SB_ERROR_PUBLIC_KEY_INVALID));
 }
 
 // This test verifies that signing different messages with the same DRBG
@@ -1383,29 +1412,32 @@ void sb_test_sign_catastrophe(void)
 
     // Initialize drbg to predictable state
     assert(sb_hmac_drbg_init(&drbg, NULL_ENTROPY, 32, NULL_ENTROPY, 32, NULL,
-               0) == SB_HMAC_DRBG_SUCCESS);
+                             0) == SB_SUCCESS);
 
     // Sign message
     assert(sb_sw_sign_message_digest(&ct, &s, &TEST_PRIV_1, &m, &drbg,
-                                     SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG));
+                                     SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG) ==
+           SB_SUCCESS);
 
     // Reinitialize drbg state
     assert(sb_hmac_drbg_init(&drbg, NULL_ENTROPY, 32, NULL_ENTROPY, 32, NULL,
-                             0) == SB_HMAC_DRBG_SUCCESS);
+                             0) == SB_SUCCESS);
 
     // Sign the same message, which should produce the same signature
     assert(sb_sw_sign_message_digest(&ct, &s2, &TEST_PRIV_1, &m, &drbg,
-                                     SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG));
+                                     SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG) ==
+           SB_SUCCESS);
     assert(memcmp(&s, &s2, sizeof(s)) == 0);
 
     // Reinitialize drbg state
     assert(sb_hmac_drbg_init(&drbg, NULL_ENTROPY, 32, NULL_ENTROPY, 32, NULL,
-                             0) == SB_HMAC_DRBG_SUCCESS);
+                             0) == SB_SUCCESS);
     // Sign a different message, which should produce a different R because a
     // different k was used!
     m.bytes[0] ^= 1;
     assert(sb_sw_sign_message_digest(&ct, &s3, &TEST_PRIV_1, &m, &drbg,
-                                     SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG));
+                                     SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG) ==
+           SB_SUCCESS);
     assert(memcmp(&s, &s3, 32) != 0);
 
     // For manual verification: if you break sb_sw_sign_message_digest by
@@ -1426,20 +1458,20 @@ static void sb_test_sign_iter_c(const sb_sw_curve_id_t c)
     sb_hmac_drbg_state_t drbg;
     assert(sb_hmac_drbg_init(&drbg, TEST_PRIV_1.bytes, sizeof(TEST_PRIV_1),
                              TEST_PRIV_2.bytes, sizeof(TEST_PRIV_2), NULL, 0)
-           == SB_HMAC_DRBG_SUCCESS);
+           == SB_SUCCESS);
     do {
         assert(sb_sw_generate_private_key(&ct, &d, &drbg, c,
-                                          SB_DATA_ENDIAN_BIG));
+                                          SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
         assert(sb_sw_compute_public_key(&ct, &p, &d, &drbg, c,
-                                        SB_DATA_ENDIAN_BIG) == 1);
+                                        SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
         assert(sb_sw_sign_message_digest(&ct, &s, &d, &TEST_MESSAGE, &drbg,
-                                         c, SB_DATA_ENDIAN_BIG) == 1);
+                                         c, SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
         assert(sb_sw_verify_signature(&ct, &s, &p, &TEST_MESSAGE, &drbg, c,
-                                      SB_DATA_ENDIAN_BIG) == 1);
+                                      SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
         assert(
             sb_hmac_drbg_reseed(&drbg, TEST_PRIV_1.bytes, sizeof(TEST_PRIV_1),
                                 TEST_PRIV_2.bytes, sizeof(TEST_PRIV_2))
-            == SB_HMAC_DRBG_SUCCESS);
+            == SB_SUCCESS);
         i++;
     } while (i < 128);
 }
@@ -1465,26 +1497,26 @@ static void sb_test_shared_iter_c(const sb_sw_curve_id_t c)
     sb_hmac_drbg_state_t drbg;
     assert(sb_hmac_drbg_init(&drbg, TEST_PRIV_1.bytes, sizeof(TEST_PRIV_1),
                              TEST_PRIV_2.bytes, sizeof(TEST_PRIV_2), NULL, 0)
-           == SB_HMAC_DRBG_SUCCESS);
+           == SB_SUCCESS);
     do {
         assert(sb_sw_generate_private_key(&ct, &d, &drbg, c,
-                                          SB_DATA_ENDIAN_LITTLE));
+                                          SB_DATA_ENDIAN_LITTLE) == SB_SUCCESS);
         assert(sb_sw_compute_public_key(&ct, &p, &d, &drbg, c,
-                                        SB_DATA_ENDIAN_LITTLE) == 1);
+                                        SB_DATA_ENDIAN_LITTLE) == SB_SUCCESS);
         assert(sb_sw_generate_private_key(&ct, &d2, &drbg, c,
                                           SB_DATA_ENDIAN_LITTLE));
         assert(sb_sw_compute_public_key(&ct, &p2, &d2, &drbg, c,
-                                        SB_DATA_ENDIAN_LITTLE) == 1);
+                                        SB_DATA_ENDIAN_LITTLE) == SB_SUCCESS);
         assert(sb_sw_shared_secret(&ct, &s, &d, &p2, &drbg, c,
-                                   SB_DATA_ENDIAN_LITTLE) == 1);
+                                   SB_DATA_ENDIAN_LITTLE) == SB_SUCCESS);
         assert(sb_sw_shared_secret(&ct, &s2, &d2, &p, &drbg, c,
-                                   SB_DATA_ENDIAN_LITTLE) == 1);
+                                   SB_DATA_ENDIAN_LITTLE) == SB_SUCCESS);
         assert(memcmp(&s, &s2, sizeof(s)) == 0);
 
         assert(
             sb_hmac_drbg_reseed(&drbg, TEST_PRIV_1.bytes, sizeof(TEST_PRIV_1),
                                 TEST_PRIV_2.bytes, sizeof(TEST_PRIV_2))
-            == SB_HMAC_DRBG_SUCCESS);
+            == SB_SUCCESS);
         i++;
     } while (i < 128);
 }
@@ -1530,7 +1562,7 @@ void sb_test_shared_secret_k256(void)
     sb_sw_shared_secret_t out;
     sb_sw_context_t ct;
     assert(sb_sw_shared_secret(&ct, &out, &d, &p, NULL, SB_SW_CURVE_SECP256K1,
-                               SB_DATA_ENDIAN_BIG) == 1);
+                               SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(memcmp(&s, &out, sizeof(out)) == 0);
 }
 
@@ -1566,17 +1598,50 @@ void sb_test_sign_k256(void)
     sb_sw_public_t pub_out;
     sb_sw_context_t ct;
     assert(sb_sw_valid_public_key(&ct, &p, SB_SW_CURVE_SECP256K1,
-                                  SB_DATA_ENDIAN_BIG) == 1);
+                                  SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(sb_sw_compute_public_key(&ct, &pub_out, &d, NULL,
                                     SB_SW_CURVE_SECP256K1,
-                                    SB_DATA_ENDIAN_BIG) == 1);
+                                    SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(memcmp(&pub_out, &p, sizeof(p)) == 0);
     assert(sb_sw_sign_message_digest(&ct, &out, &d, &m, NULL,
                                      SB_SW_CURVE_SECP256K1,
-                                     SB_DATA_ENDIAN_BIG) == 1);
+                                     SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
     assert(sb_sw_verify_signature(&ct, &out, &p, &m, NULL,
                                   SB_SW_CURVE_SECP256K1,
-                                  SB_DATA_ENDIAN_BIG) == 1);
+                                  SB_DATA_ENDIAN_BIG) == SB_SUCCESS);
+}
+
+void sb_test_sw_early_errors(void)
+{
+    sb_hmac_drbg_state_t drbg;
+    assert(sb_hmac_drbg_init(&drbg, TEST_PRIV_1.bytes, sizeof(TEST_PRIV_1),
+                             TEST_PRIV_2.bytes, sizeof(TEST_PRIV_2), NULL, 0)
+           == SB_SUCCESS);
+    drbg.reseed_counter = SB_HMAC_DRBG_RESEED_INTERVAL;
+
+    sb_sw_context_t ct;
+    sb_single_t s;
+    sb_double_t d;
+    assert(sb_sw_generate_private_key(&ct, &s, &drbg,
+                                      SB_SW_CURVE_INVALID, SB_DATA_ENDIAN_BIG)
+           == (SB_ERROR_CURVE_INVALID | SB_ERROR_RESEED_REQUIRED));
+    assert(sb_sw_compute_public_key(&ct, &d, &TEST_PRIV_1, &drbg,
+                                    SB_SW_CURVE_INVALID, SB_DATA_ENDIAN_BIG)
+           == (SB_ERROR_CURVE_INVALID | SB_ERROR_RESEED_REQUIRED));
+    assert(sb_sw_valid_public_key(&ct, &d,
+                                  SB_SW_CURVE_INVALID, SB_DATA_ENDIAN_BIG)
+           == SB_ERROR_CURVE_INVALID);
+    assert(sb_sw_shared_secret(&ct, &s, &TEST_PRIV_1, &TEST_PUB_1, &drbg,
+                               SB_SW_CURVE_INVALID, SB_DATA_ENDIAN_BIG)
+           == (SB_ERROR_CURVE_INVALID | SB_ERROR_RESEED_REQUIRED));
+    assert(sb_sw_sign_message_digest(&ct, &d, &TEST_PRIV_1, &TEST_MESSAGE,
+                                     &drbg, SB_SW_CURVE_INVALID,
+                                     SB_DATA_ENDIAN_BIG)
+           == (SB_ERROR_CURVE_INVALID | SB_ERROR_RESEED_REQUIRED));
+    assert(sb_sw_verify_signature(&ct, &TEST_SIG, &TEST_PUB_1, &TEST_MESSAGE,
+                                  &drbg, SB_SW_CURVE_INVALID,
+                                  SB_DATA_ENDIAN_BIG)
+           == (SB_ERROR_CURVE_INVALID | SB_ERROR_RESEED_REQUIRED));
 }
 
 #endif
