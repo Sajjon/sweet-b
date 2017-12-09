@@ -116,11 +116,11 @@ ECC if you have more working memory or more code storage available.
 
 ## How do I get started with Sweet B?
 
-[`sb_sw_lib.h`](sb_sw_lib.h) is the main entry point for ECC operations. For
-hashing and random number generation, see [`sb_sha256.h`](sb_sha256.h) and
-[`sb_hmac_drbg.h`](sb_hmac_drbg.h). Each file contains a number of test cases;
-if you compile Sweet B with `-DSB_TEST`, you can run them using the main routine
-in [`sb_test.c`](sb_test.c).
+[`sb_sw_lib.h`](src/sb_sw_lib.h) is the main entry point for ECC operations. For
+hashing and random number generation, see [`sb_sha256.h`](src/sb_sha256.h) and
+[`sb_hmac_drbg.h`](src/sb_hmac_drbg.h). Each file contains a number of test
+cases; if you compile Sweet B with `-DSB_TEST`, you can run them using the main
+routine in [`sb_test.c`](src/sb_test.c).
 
 You can set the word size used in Sweet B with the `SB_MUL_SIZE` preprocessor
 macro. By default, this is set to 4, meaning that 32-bit multiplies producing
@@ -132,7 +132,7 @@ multiplication size to 8 to use 128-bit multiplication output.
 If you have a little more program memory available, you may want to set
 `SB_UNROLL_MUL` or `SB_UNROLL_ALL` when compiling. Sweet B will also attempt
 to detect ARM processors which support DSP extensions and use the `UMAAL`
-instruction for multiplication; see [`sb_fe.c`](sb_fe.c) if this
+instruction for multiplication; see [`sb_fe.c`](src/sb_fe.c) if this
 autodetection does not work for you.
 
 [CMake](https://cmake.org/) build support is provided; to use it, create a
