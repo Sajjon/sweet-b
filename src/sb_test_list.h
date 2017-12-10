@@ -27,6 +27,7 @@ SB_DEFINE_TEST(sw_early_errors);
 SB_DEFINE_TEST(valid_public);
 SB_DEFINE_TEST(compute_public);
 SB_DEFINE_TEST(shared_secret);
+SB_DEFINE_TEST(shared_secret_cavp_1);
 SB_DEFINE_TEST(sign_rfc6979);
 SB_DEFINE_TEST(sign_catastrophe);
 SB_DEFINE_TEST(verify);

@@ -26,7 +26,26 @@ endif()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -pedantic -Wextra")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Werror")
 
+include_directories(src)
+
+set(SB_PUBLIC_HEADERS
+        src/sb_sw_lib.h
+        src/sb_fe.h
+        src/sb_hmac_drbg.h
+        src/sb_hmac_sha256.h
+        src/sb_sha256.h
+        src/sb_sw_context.h
+        src/sb_types.h
+        src/sb_error.h)
+
+set(SB_PRIVATE_HEADERS
+        src/sb_sw_curves.h
+        src/sb_test.h
+        src/sb_test_list.h)
+
 set(SB_SOURCES
+        ${SB_PUBLIC_HEADERS}
+        ${SB_PRIVATE_HEADERS}
 
         src/sb_sha256.c
         src/sb_hmac_sha256.c
@@ -34,6 +53,9 @@ set(SB_SOURCES
 
         src/sb_fe.c
         src/sb_sw_lib.c)
+
+set_property(SOURCE src/sb_test.c APPEND PROPERTY OBJECT_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/sb_test_list.h")
 
 add_executable(sb_test ${SB_SOURCES} src/sb_test.c)
 
@@ -53,14 +75,7 @@ add_library(sweet_b SHARED ${SB_SOURCES})
 
 set_target_properties(sweet_b PROPERTIES
         VERSION ${PROJECT_VERSION}
-        PUBLIC_HEADER "src/sb_sw_lib.h
-                       src/sb_fe.h
-                       src/sb_hmac_drbg.h
-                       src/sb_hmac_sha256.h
-                       src/sb_sha256.h
-                       src/sb_sw_context.h
-                       src/sb_types.h
-                       src/sb_error.h")
+        PUBLIC_HEADER "${SB_PUBLIC_HEADERS}")
 
 install(TARGETS sweet_b
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
