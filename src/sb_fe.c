@@ -84,7 +84,7 @@ sb_word_t sb_fe_equal(const sb_fe_t left[static const 1],
                       const sb_fe_t right[static const 1])
 {
     sb_word_t r = 0;
-    SB_UNROLL_WORDS_2(i, 0, {
+    SB_UNROLL_3(i, 0, {
         r |= SB_FE_WORD(left, i) ^ SB_FE_WORD(right, i);
     });
     // r | -r has bit SB_WORD_BITS - 1 set if r is nonzero
@@ -148,7 +148,7 @@ sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
           const sb_fe_t right[static const 1])
 {
     sb_word_t carry = 0;
-    SB_UNROLL_WORDS_2(i, 0, {
+    SB_UNROLL_2(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) +
                        (sb_dword_t) SB_FE_WORD(right, i) +
                        (sb_dword_t) carry;
@@ -195,7 +195,7 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
           : "m" (left), "m" (right));
 
 #else
-    SB_UNROLL_WORDS_2(i, 0, {
+    SB_UNROLL_2(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
                        ((sb_dword_t) SB_FE_WORD(right, i) +
                         (sb_dword_t) borrow);
@@ -217,7 +217,7 @@ sb_word_t sb_fe_lt(const sb_fe_t left[static const 1],
                    const sb_fe_t right[static const 1])
 {
     sb_word_t borrow = 0;
-    SB_UNROLL_WORDS_2(i, 0, {
+    SB_UNROLL_3(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
                        ((sb_dword_t) SB_FE_WORD(right, i) +
                         (sb_dword_t) borrow);
@@ -251,7 +251,7 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
                                const sb_prime_field_t p[static const 1])
 {
     sb_word_t carry = sb_ctc_word(c, 2, 1);
-    SB_UNROLL_WORDS_2(i, 0, {
+    SB_UNROLL_2(i, 0, {
         sb_dword_t d =
             (sb_dword_t) SB_FE_WORD(dest, i) +
             (sb_dword_t) sb_ctc_word(c, SB_FE_WORD(&SB_FE_MINUS_ONE, i),
@@ -374,12 +374,12 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
     *A = p->p; // A = 0
     sb_word_t hw = 0;
 
-    SB_UNROLL_WORDS_2(i, 0, { // for i from 0 to (n - 1)
+    SB_UNROLL_2(i, 0, { // for i from 0 to (n - 1)
         const sb_word_t x_i = SB_FE_WORD(x, i);
 
         sb_word_t c = 0, c2 = 0;
 
-        SB_UNROLL_WORDS(j, 0, {
+        SB_UNROLL_1(j, 0, {
             // A = A + x_i * y
             sb_mult_add_add(&c, &SB_FE_WORD(A, j),
                             x_i,
@@ -394,7 +394,7 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
                 (SB_FE_WORD(A, 0) *
                  ((sb_dword_t) p->p_mp));
 
-        SB_UNROLL_WORDS(j, 0, {
+        SB_UNROLL_1(j, 0, {
             // A = A + u_i * m
             sb_mult_add_add(&c2, &SB_FE_WORD(A, j), u_i,
                             SB_FE_WORD(&p->p, j), SB_FE_WORD(A, j),
@@ -402,7 +402,7 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
         });
 
         // A = A / b
-        SB_UNROLL_WORDS(j, 1, { SB_FE_WORD(A, j - 1) = SB_FE_WORD(A, j); });
+        SB_UNROLL_1(j, 1, { SB_FE_WORD(A, j - 1) = SB_FE_WORD(A, j); });
 
         sb_add_carry_2(&hw, &SB_FE_WORD(A, SB_FE_WORDS - 1), hw, c, c2);
         SB_ASSERT(hw < 2, "W + W * W + W * W overflows at most once");

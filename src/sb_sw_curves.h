@@ -17,6 +17,11 @@
 
 #include "sb_fe.h"
 #include "sb_hmac_drbg.h"
+#include "sb_sw_lib.h"
+
+#if defined(SB_TEST) && !(SB_SW_P256_SUPPORT && SB_SW_SECP256K1_SUPPORT)
+#error "Both SB_SW_P256_SUPPORT and SB_SW_SECP256K1_SUPPORT must be enabled for tests!"
+#endif
 
 // An elliptic curve defined in the short Weierstrass form:
 // y^2 = x^3 + a*x + b
@@ -33,6 +38,8 @@ typedef struct sb_sw_curve_t {
     sb_fe_t b; // b ("random" for P256, 7 for secp256k1)
     sb_fe_t gr[2]; // The generator for the group, with X and Y multiplied by R
 } sb_sw_curve_t;
+
+#if SB_SW_P256_SUPPORT
 
 // P256 is defined over F(p) where p is the Solinas prime
 // 2^256 - 2^224 + 2^192 + 2^96 - 1
@@ -98,6 +105,10 @@ static const sb_sw_curve_t SB_CURVE_P256 = {
     }
 };
 
+#endif
+
+#if SB_SW_SECP256K1_SUPPORT
+
 // secp256k1 is defined over F(p):
 static const sb_prime_field_t SB_CURVE_SECP256K1_P = {
     .p = SB_FE_CONST(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
@@ -160,5 +171,7 @@ static const sb_sw_curve_t SB_CURVE_SECP256K1 = {
                          0x8DFC5D5D1F1DC64D, 0xB15EA6D2D3DBABE2)
     }
 };
+
+#endif
 
 #endif

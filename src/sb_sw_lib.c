@@ -857,10 +857,14 @@ static _Bool sb_sw_verify(sb_sw_context_t v[static const 1],
 static const sb_sw_curve_t* sb_sw_curve_from_id(sb_sw_curve_id_t const curve)
 {
     switch (curve) {
+#if SB_SW_P256_SUPPORT
         case SB_SW_CURVE_P256:
             return &SB_CURVE_P256;
+#endif
+#if SB_SW_SECP256K1_SUPPORT
         case SB_SW_CURVE_SECP256K1:
             return &SB_CURVE_SECP256K1;
+#endif
 #ifdef SB_TEST
         case SB_SW_CURVE_INVALID:
             break;

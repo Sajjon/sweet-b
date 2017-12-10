@@ -131,8 +131,10 @@ microcontrollers without full 64-bit multiply output (such as the Cortex-M0+),
 you should set this to 1 or 2. On 64-bit x86 systems, you may want to set the
 multiplication size to 8 to use 128-bit multiplication output.
 
+You can disable either of the curves Sweet B supports by setting the
+preprocessor defines `SB_SW_P256_SUPPORT` or `SB_SW_SECP256K1_SUPPORT` to 0.
 If you have a little more program memory available, you may want to set
-`SB_UNROLL_MUL` or `SB_UNROLL_ALL` when compiling. Sweet B will also attempt
+`SB_UNROLL` to a value between 1 and 3 (inclusive). Sweet B will also attempt
 to detect ARM processors which support DSP extensions and use the `UMAAL`
 instruction for multiplication; see [`sb_fe.c`](src/sb_fe.c) if this
 autodetection does not work for you.

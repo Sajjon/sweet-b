@@ -29,9 +29,25 @@ typedef sb_single_t sb_sw_message_digest_t;
 typedef sb_double_t sb_sw_public_t;
 typedef sb_double_t sb_sw_signature_t;
 
+#ifndef SB_SW_P256_SUPPORT
+#define SB_SW_P256_SUPPORT 1
+#endif
+
+#ifndef SB_SW_SECP256K1_SUPPORT
+#define SB_SW_SECP256K1_SUPPORT 1
+#endif
+
+#if !SB_SW_P256_SUPPORT && !SB_SW_SECP256K1_SUPPORT
+#error "One of SB_SW_P256_SUPPORT or SB_SW_SECP256K1_SUPPORT must be enabled!"
+#endif
+
 typedef enum sb_sw_curve_id_t {
+#if SB_SW_P256_SUPPORT
     SB_SW_CURVE_P256 = 0,
+#endif
+#if SB_SW_SECP256K1_SUPPORT
     SB_SW_CURVE_SECP256K1 = 1,
+#endif
 #ifdef SB_TEST
     SB_SW_CURVE_INVALID = 0x7FFFFFFF
 #endif

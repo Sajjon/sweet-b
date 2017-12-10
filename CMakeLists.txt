@@ -67,6 +67,7 @@ add_executable(sb_test ${SB_SOURCES} src/sb_test.c)
 
 target_compile_definitions(sb_test PRIVATE SB_TEST SB_MUL_SIZE=2
         SB_DEBUG_ASSERTS
+        SB_UNROLL=3
         SB_HMAC_DRBG_RESEED_INTERVAL=8
         SB_HMAC_DRBG_MAX_BYTES_PER_REQUEST=128
         SB_HMAC_DRBG_MAX_ENTROPY_INPUT_LENGTH=128)

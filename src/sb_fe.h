@@ -101,7 +101,7 @@ static const sb_word_t SB_WORD_BITS_MASK = 0x07;
 
 // Note: when porting to a new compiler, check to see if it's smart enough to
 // optimize out the dead code when v >= SB_FE_WORDS!
-#ifdef SB_UNROLL_MUL
+#if defined(SB_UNROLL)
 #define SB_UNROLL_WORDS(v, i, ...) do { \
     sb_bitcount_t v = (i); \
     if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
@@ -138,15 +138,28 @@ static const sb_word_t SB_WORD_BITS_MASK = 0x07;
     if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
 } while (0)
 #else
-#define SB_UNROLL_WORDS(v, i, ...) \
-    do { for (size_t v = (i); v < SB_FE_WORDS; v++) __VA_ARGS__ } while (0)
+#define SB_UNROLL 0
 #endif
 
-#ifdef SB_UNROLL_ALL
-#define SB_UNROLL_WORDS_2(v, i, ...) SB_UNROLL_WORDS(v, i, __VA_ARGS__)
-#else
-#define SB_UNROLL_WORDS_2(v, i, ...) \
+#define SB_LOOP_WORDS(v, i, ...) \
     do { for (size_t v = (i); v < SB_FE_WORDS; v++) __VA_ARGS__ } while (0)
+
+#if SB_UNROLL >= 1
+#define SB_UNROLL_1(v, i, ...) SB_UNROLL_WORDS(v, i, __VA_ARGS__)
+#else
+#define SB_UNROLL_1(v, i, ...) SB_LOOP_WORDS(v, i, __VA_ARGS__)
+#endif
+
+#if SB_UNROLL >= 2
+#define SB_UNROLL_2(v, i, ...) SB_UNROLL_WORDS(v, i, __VA_ARGS__)
+#else
+#define SB_UNROLL_2(v, i, ...) SB_LOOP_WORDS(v, i, __VA_ARGS__)
+#endif
+
+#if SB_UNROLL >= 3
+#define SB_UNROLL_3(v, i, ...) SB_UNROLL_WORDS(v, i, __VA_ARGS__)
+#else
+#define SB_UNROLL_3(v, i, ...) SB_LOOP_WORDS(v, i, __VA_ARGS__)
 #endif
 
 typedef struct sb_fe_t {
