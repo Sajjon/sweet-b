@@ -134,7 +134,8 @@ multiplication size to 8 to use 128-bit multiplication output.
 You can disable either of the curves Sweet B supports by setting the
 preprocessor defines `SB_SW_P256_SUPPORT` or `SB_SW_SECP256K1_SUPPORT` to 0.
 If you have a little more program memory available, you may want to set
-`SB_UNROLL` to a value between 1 and 3 (inclusive). Sweet B will also attempt
+`SB_UNROLL` to a value between 1 and 3 (inclusive); on Cortex-M4, `SB_UNROLL=2`
+provides the best balance between size and speed. Sweet B will also attempt
 to detect ARM processors which support DSP extensions and use the `UMAAL`
 instruction for multiplication; see [`sb_fe.c`](src/sb_fe.c) if this
 autodetection does not work for you.
