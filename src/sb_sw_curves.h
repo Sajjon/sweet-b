@@ -46,7 +46,6 @@ typedef struct sb_sw_curve_t {
 static const sb_prime_field_t SB_CURVE_P256_P = {
     .p = SB_FE_CONST(0xFFFFFFFF00000001, 0x0000000000000000,
                      0x00000000FFFFFFFF, 0xFFFFFFFFFFFFFFFF),
-
     // p - 2 has Hamming weight 128. Factors:
 
     // Hamming weight 100
@@ -99,9 +98,9 @@ static const sb_sw_curve_t SB_CURVE_P256 = {
                      0x651D06B0CC53B0F6, 0x3BCE3C3E27D2604B),
     .gr = {
         SB_FE_CONST(0x18905F76A53755C6, 0x79FB732B77622510,
-                         0x75BA95FC5FEDB601, 0x79E730D418A9143C),
+                    0x75BA95FC5FEDB601, 0x79E730D418A9143C),
         SB_FE_CONST(0x8571FF1825885D85, 0xD2E88688DD21F325,
-                         0x8B4AB8E4BA19E45C, 0xDDF25357CE95560A)
+                    0x8B4AB8E4BA19E45C, 0xDDF25357CE95560A)
     }
 };
 
@@ -142,9 +141,8 @@ static const sb_prime_field_t SB_CURVE_SECP256K1_N = {
     // p -2 has Hamming weight 196. Factors:
 
     // Hamming weight 134:
-    .p_minus_two_f1 =
-        SB_FE_CONST(0x3333333333333333, 0x3333333333333332,
-                    0xF222F8FAEFDB533F, 0x265D461C29A47373),
+    .p_minus_two_f1 = SB_FE_CONST(0x3333333333333333, 0x3333333333333332,
+                                  0xF222F8FAEFDB533F, 0x265D461C29A47373),
 
     // Hamming weight 2:
     .p_minus_two_f2 = SB_FE_CONST(0, 0, 0, 5),
@@ -166,9 +164,9 @@ static const sb_sw_curve_t SB_CURVE_SECP256K1 = {
     .b = SB_FE_CONST(0, 0, 0, 7),
     .gr = {
         SB_FE_CONST(0x9981E643E9089F48, 0x979F48C033FD129C,
-                         0x231E295329BC66DB, 0xD7362E5A487E2097),
+                    0x231E295329BC66DB, 0xD7362E5A487E2097),
         SB_FE_CONST(0xCF3F851FD4A582D6, 0x70B6B59AAC19C136,
-                         0x8DFC5D5D1F1DC64D, 0xB15EA6D2D3DBABE2)
+                    0x8DFC5D5D1F1DC64D, 0xB15EA6D2D3DBABE2)
     }
 };
 

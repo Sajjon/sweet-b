@@ -1,5 +1,5 @@
 /*
- * sb_sw_lib.h: public API for operations on elliptic curves
+ * sb_sw_lib.h: public API for operations on short Weierstrass elliptic curves
  *
  * This file is part of Sweet B, a safe, compact, embeddable elliptic curve
  * cryptography library.

@@ -15,9 +15,37 @@
 #include "sb_fe.h"
 #include "sb_sw_curves.h"
 
-static const sb_fe_t SB_FE_MINUS_ONE =
-    SB_FE_CONST(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
-                0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
+// ARM assembly is provided for Thumb-2 and 32-bit ARMv6 and later targets.
+// If you have DSP extensions, the UMAAL instruction is used, which provides
+// substantially better multiplication performance. The following bit of
+// preprocessor crud tests whether you have a target for which the assembly
+// is supported. If this does not work for you (you're not getting assembly
+// on a target where you expect it or the assembly generated does not work
+// for your target), you can define SB_USE_ARM_ASM explicitly, but please
+// also file a GitHub issue!
+
+#ifndef SB_USE_ARM_ASM
+#if (defined(__thumb__) && defined(__ARM_ARCH_ISA_THUMB) && \
+     __ARM_ARCH_ISA_THUMB >= 2) || \
+    (!defined(__thumb__) && defined(__ARM_ARCH) && __ARM_ARCH >= 6 && \
+     !defined(__aarch64__)) && \
+    SB_MUL_SIZE == 4
+#define SB_USE_ARM_ASM 1
+#if defined(__ARM_FEATURE_DSP) && !defined(SB_USE_ARM_DSP_ASM)
+#define SB_USE_ARM_DSP_ASM 1
+#endif
+#else
+#define SB_USE_ARM_ASM 0
+#endif
+#endif
+
+#if !defined(SB_USE_ARM_DSP_ASM)
+#define SB_USE_ARM_DSP_ASM 0
+#endif
+
+#if SB_USE_ARM_DSP_ASM && !SB_USE_ARM_ASM
+#error "Conflicting options: SB_USE_ARM_DSP_ASM implies SB_USE_ARM_ASM"
+#endif
 
 void sb_fe_from_bytes(sb_fe_t dest[static const 1],
                       const sb_byte_t src[static const SB_ELEM_BYTES],
@@ -148,6 +176,36 @@ sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
           const sb_fe_t right[static const 1])
 {
     sb_word_t carry = 0;
+
+#if SB_USE_ARM_ASM
+    register sb_word_t l_0 __asm("r4");
+    register sb_word_t l_1 __asm("r5");
+    register sb_word_t r_0 __asm("r6");
+    register sb_word_t r_1 __asm("r7");
+
+#define ADD_ITER(add_0, i_0, i_1) \
+          "ldrd %[l_0], %[l_1], [%[left], #" i_0 "]\n\t" \
+          "ldrd %[r_0], %[r_1], [%[right], #" i_0 "]\n\t" \
+          add_0 " %[l_0], %[l_0], %[r_0]\n\t" \
+          "str  %[l_0], [%[dest], #" i_0 "]\n\t" \
+          "adcs %[l_1], %[l_1], %[r_1]\n\t" \
+          "str  %[l_1], [%[dest], #" i_1 "]\n\t" \
+
+    __asm(ADD_ITER("adds", "0", "4") // 0 and 1
+          ADD_ITER("adcs", "8", "12") // 2 and 3
+          ADD_ITER("adcs", "16", "20") // 4 and 5
+          ADD_ITER("adcs", "24", "28") // 6 and 7
+
+          "adc  %[carry], %[carry], #0\n\t" // move C into carry
+
+          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
+            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
+            [carry] "+&r" (carry), "=m" (*dest)
+          : [left] "r" (left), [right] "r" (right), [dest] "r" (dest),
+            "m" (*left), "m" (*right)
+          : "cc");
+
+#else
     SB_UNROLL_2(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) +
                        (sb_dword_t) SB_FE_WORD(right, i) +
@@ -155,6 +213,7 @@ sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         carry = (sb_word_t) (d >> SB_WORD_BITS);
     });
+#endif
     return carry;
 }
 
@@ -164,35 +223,41 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
                                   const sb_fe_t right[static 1],
                                   sb_word_t borrow)
 {
-#if defined(__ARM_ARCH) && __ARM_ARCH >= 6 && defined(__thumb2__) && \
-    SB_MUL_SIZE == 4
+
+#if SB_USE_ARM_ASM
+    register sb_word_t l_0 __asm("r4");
+    register sb_word_t l_1 __asm("r5");
+    register sb_word_t r_0 __asm("r6");
+    register sb_word_t r_1 __asm("r7");
 
     // It seems to be difficult to get gcc to produce sbcs
 
-#define SUB_ITER \
-          "ldrd %0, %1, [%5], #8\n\t" \
-          "ldrd %2, %3, [%6], #8\n\t" \
-          "sbcs %0, %0, %2\n\t" \
-          "sbcs %1, %1, %3\n\t" \
-          "strd %0, %1, [%4], #8\n\t" \
+#define SUB_ITER(sub, s_0, s_1, i) \
+          "ldrd %[l_0], %[l_1], [%[left], # " i "]\n\t" \
+          "ldrd %[r_0], %[r_1], [%[right], # " i "]\n\t" \
+          sub " %[l_0], %[l_0], %[r_0]\n\t" \
+          s_0 \
+          "sbcs %[l_1], %[l_1], %[r_1]\n\t" \
+          s_1
 
-    uint32_t l_0, l_1, r_0, r_1;
-    __asm("mov  %0, #0\n\t"
-          "subs %0, %0, %7\n\t" // set C based on borrow
+#define SUB_ITER_STORE(sub, i_0, i_1) \
+          SUB_ITER(sub, "str %[l_0], [%[dest], #" i_0 "]\n\t", \
+                        "str %[l_1], [%[dest], #" i_1 "]\n\t", i_0) \
 
-          SUB_ITER // 0 and 1
-          SUB_ITER // 2 and 3
-          SUB_ITER // 4 and 5
-          SUB_ITER // 6 and 7
+    __asm("rsbs %[b], #0\n\t"
+          SUB_ITER_STORE("sbcs", "0", "4") // 0 and 1
+          SUB_ITER_STORE("sbcs", "8", "12") // 2 and 3
+          SUB_ITER_STORE("sbcs", "16", "20") // 4 and 5
+          SUB_ITER_STORE("sbcs", "24", "28") // 6 and 7
 
-          "mov  %7, #1\n\t"
-          "sbc  %7, %7, #0\n\t" // borrow is now inverted
-          "eor  %7, %7, #1\n\t"
+          "sbc  %[b], %[b], %[b]\n\t"
+          "rsb  %[b], #0\n\t"
 
-          : "=r" (l_0), "=r" (l_1), "=r" (r_0), "=r" (r_1),
-            "+r" (dest), "+r" (left), "+r" (right), "+r" (borrow),
-            "=m" (*dest)
-          : "m" (left), "m" (right));
+          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
+            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
+            [b] "+&r" (borrow), "=m" (*dest)
+          : [left] "r" (left), [right] "r" (right), [dest] "r" (dest),
+            "m" (*left), "m" (*right) : "cc");
 
 #else
     SB_UNROLL_2(i, 0, {
@@ -206,23 +271,46 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
     return borrow;
 }
 
-sb_word_t sb_fe_sub(sb_fe_t dest[static const 1],
-                    const sb_fe_t left[static const 1],
-                    const sb_fe_t right[static const 1])
+
+sb_word_t sb_fe_sub(sb_fe_t dest[static 1],
+                    const sb_fe_t left[static 1],
+                    const sb_fe_t right[static 1])
 {
     return sb_fe_sub_borrow(dest, left, right, 0);
 }
 
-sb_word_t sb_fe_lt(const sb_fe_t left[static const 1],
-                   const sb_fe_t right[static const 1])
+sb_word_t sb_fe_lt(const sb_fe_t left[static 1],
+                   const sb_fe_t right[static 1])
 {
     sb_word_t borrow = 0;
+
+#if SB_USE_ARM_ASM
+    register sb_word_t l_0 __asm("r4");
+    register sb_word_t l_1 __asm("r5");
+    register sb_word_t r_0 __asm("r6");
+    register sb_word_t r_1 __asm("r7");
+
+    __asm(SUB_ITER("subs", "", "", "0") // 0 and 1
+          SUB_ITER("sbcs", "", "", "8") // 2 and 3
+          SUB_ITER("sbcs", "", "", "16") // 4 and 5
+          SUB_ITER("sbcs", "", "", "24") // 6 and 7
+
+          "sbc  %[b], %[b], %[b]\n\t"
+          "rsb  %[b], #0\n\t"
+
+          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
+            [r_0] "=&r" (r_0),  [r_1] "=&r" (r_1),
+            [b] "+&r" (borrow)
+          : [left] "r" (left), [right] "r" (right),
+            "m" (*left), "m" (*right) : "cc");
+#else
     SB_UNROLL_3(i, 0, {
         sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
                        ((sb_dword_t) SB_FE_WORD(right, i) +
                         (sb_dword_t) borrow);
         borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
     });
+#endif
     return borrow;
 }
 
@@ -242,37 +330,147 @@ sb_word_t sb_fe_lt(const sb_fe_t left[static const 1],
 // of the intermediaries have hamming weight close to the original, with P
 // only emerging in the last iteration of the loop.
 
-// This helper routine adds 1 or (p + 1), depending on c. Addition of 1 is done
-// by adding -1 with a carry of 2; the underlying (and untested) assumption is
-// that addition of a high Hamming-weight value is "closer" to adding p than
-// adding zero.
-
-static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
-                               const sb_prime_field_t p[static const 1])
+// This helper routine subtracts p if c is 1; the subtraction is done
+// unconditionally, and the result is only written if c is 1
+static void sb_fe_cond_sub_p(sb_fe_t dest[static 1], sb_word_t c,
+                             const sb_fe_t p[static 1])
 {
-    sb_word_t carry = sb_ctc_word(c, 2, 1);
+#if SB_USE_ARM_ASM
+    register sb_word_t l_0 __asm("r4");
+    register sb_word_t l_1 __asm("r5");
+    register sb_word_t r_0 __asm("r6");
+    register sb_word_t r_1 __asm("r7");
+    c = sb_word_mask(c);
+
+#if SB_USE_ARM_DSP_ASM
+
+    // set GE bits
+#define SB_COND_STORE_SET "uadd8 %[l_0], %[c], %[c]\n\t"
+#define SB_COND_STORE_SEL(l, r, c) "sel %[" l "], %[" r "], %[" l "]\n\t"
+
+#else
+
+#define SB_COND_STORE_SET ""
+#define SB_COND_STORE_SEL(l, r, c) \
+          "eor  %[" r "], %[" l "], %[" r "]\n\t" \
+          "and  %[" r "], %[" r "], %[" c "]\n\t" \
+          "eor  %[" l "], %[" l "], %[" r "]\n\t" \
+
+#endif
+
+#define SB_ITER_COND_STORE(ops, opcs, i_0, i_1) \
+          "ldrd  %[l_0], %[l_1], [%[dest], #" i_0 "]\n\t" \
+          "ldrd  %[r_0], %[r_1], [%[p], #" i_0 "]\n\t" \
+          ops  " %[r_0], %[l_0], %[r_0]\n\t" \
+          opcs " %[r_1], %[l_1], %[r_1]\n\t" \
+          SB_COND_STORE_SEL("l_0", "r_0", "c") \
+          "str   %[l_0], [%[dest], #" i_0 "]\n\t" \
+          SB_COND_STORE_SEL("l_1", "r_1", "c") \
+          "str   %[l_1], [%[dest], #" i_1 "]\n\t" \
+
+    __asm(SB_COND_STORE_SET
+
+          SB_ITER_COND_STORE("subs", "sbcs", "0", "4") // 0 and 1
+          SB_ITER_COND_STORE("sbcs", "sbcs", "8", "12") // 2 and 3
+          SB_ITER_COND_STORE("sbcs", "sbcs", "16", "20") // 4 and 5
+          SB_ITER_COND_STORE("sbcs", "sbcs", "24", "28") // 6 and 7
+
+          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
+            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
+            "=m" (*dest)
+          : [dest] "r" (dest), [p] "r" (p), [c] "r" (c),
+            "m" (*dest), "m" (*p) : "cc");
+
+#else
+    sb_word_t borrow = 0;
+
     SB_UNROLL_2(i, 0, {
-        sb_dword_t d =
-            (sb_dword_t) SB_FE_WORD(dest, i) +
-            (sb_dword_t) sb_ctc_word(c, SB_FE_WORD(&SB_FE_MINUS_ONE, i),
-                                     SB_FE_WORD(&p->p, i)) +
-            (sb_dword_t) carry;
+        sb_dword_t d = (sb_dword_t) SB_FE_WORD(dest, i) -
+                       ((sb_dword_t) SB_FE_WORD(p, i) +
+                        (sb_dword_t) borrow);
+        SB_FE_WORD(dest, i) = sb_ctc_word(c, SB_FE_WORD(dest, i),
+                                          (sb_word_t) d);
+        borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
+    });
+#endif
+}
+
+// Quasi-reduce dest (with extra carry bit) by subtracting p iff dest is
+// greater than p
+void sb_fe_qr(sb_fe_t dest[static const 1], sb_word_t const carry,
+              const sb_prime_field_t p[static const 1])
+{
+    sb_word_t b = sb_fe_lt(&p->p, dest);
+    sb_fe_cond_sub_p(dest, carry | b, &p->p);
+    SB_ASSERT(sb_fe_equal(dest, &p->p) || sb_fe_lt(dest, &p->p),
+              "quasi-reduction must always produce quasi-reduced output");
+    SB_ASSERT(!sb_fe_equal(dest, &SB_FE_ZERO),
+              "quasi-reduction must always produce quasi-reduced output");
+}
+
+// This helper adds 1 or (p + 1), depending on c. On ARM, this is done by
+// adding p then choosing to store either the original value or the result of
+// the addition, followed by a second pass to add 1.
+static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
+                               const sb_fe_t p[static 1])
+{
+#if SB_USE_ARM_ASM
+    register sb_word_t l_0 __asm("r4");
+    register sb_word_t l_1 __asm("r5");
+    register sb_word_t r_0 __asm("r6");
+    register sb_word_t r_1 __asm("r7");
+    c = sb_word_mask(c);
+
+#define ADD_1_ITER(add_0, add_0_v, i_0, i_1) \
+          "ldrd %[l_0], %[l_1], [%[dest], #" i_0 "]\n\t" \
+          add_0 " %[l_0], %[l_0], #" add_0_v "\n\t" \
+          "str  %[l_0], [%[dest], #" i_0 "]\n\t" \
+          "adcs %[l_1], %[l_1], #0\n\t" \
+          "str  %[l_1], [%[dest], #" i_1 "]\n\t" \
+
+    __asm(SB_COND_STORE_SET
+
+          SB_ITER_COND_STORE("adds", "adcs", "0", "4") // 0 and 1
+          SB_ITER_COND_STORE("adcs", "adcs", "8", "12") // 2 and 3
+          SB_ITER_COND_STORE("adcs", "adcs", "16", "20") // 4 and 5
+          SB_ITER_COND_STORE("adcs", "adcs", "24", "28") // 6 and 7
+
+          ADD_1_ITER("adds", "1", "0", "4")
+          ADD_1_ITER("adcs", "0", "8", "12")
+          ADD_1_ITER("adcs", "0", "16", "20")
+          ADD_1_ITER("adcs", "0", "24", "28")
+
+          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
+            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
+            "=m" (*dest)
+          : [dest] "r" (dest), [p] "r" (p), [c] "r" (c),
+            "m" (*dest), "m" (*p) : "cc");
+
+#else
+    sb_word_t carry = 1;
+
+    SB_UNROLL_2(i, 0, {
+        sb_dword_t d = (sb_dword_t) SB_FE_WORD(dest, i) +
+                       (sb_dword_t) sb_ctc_word(c, 0, SB_FE_WORD(p, i)) +
+                       (sb_dword_t) carry;
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         carry = (sb_word_t) (d >> SB_WORD_BITS);
     });
+#endif
 }
 
-// Given quasi-reduced left and right, produce quasi-reduced left - right.
-// left and right may differ by no more than the modulus, so the final addition
-// of p+1 will produce output between 1 and p, inclusive.
 
+// Given quasi-reduced left and right, produce quasi-reduced left - right.
+// This is done as a subtraction of (right - 1) followed by addition of
+// 1 or (p + 1), which means that a result of all zeros is never written back
+// to memory.
 void
 sb_fe_mod_sub(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
               const sb_fe_t right[static const 1],
               const sb_prime_field_t p[static const 1])
 {
     sb_word_t b = sb_fe_sub_borrow(dest, left, right, 1);
-    sb_fe_cond_add_p_1(dest, b, p);
+    sb_fe_cond_add_p_1(dest, b, &p->p);
     SB_ASSERT(sb_fe_equal(dest, &p->p) || sb_fe_lt(dest, &p->p),
               "modular subtraction must always produce quasi-reduced output");
     SB_ASSERT(!sb_fe_equal(dest, &SB_FE_ZERO),
@@ -280,24 +478,14 @@ sb_fe_mod_sub(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
 }
 
 // Given quasi-reduced left and right, produce quasi-reduced left + right.
-// Consider adding (P - 1) and 1. The first addition will not overflow;
-// the subtraction of P + 1 will overflow, and P + 1 will be added back
-// to the result, producing P.
 
 void
 sb_fe_mod_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
               const sb_fe_t right[static const 1],
               const sb_prime_field_t p[static const 1])
 {
-    sb_word_t c = sb_fe_add(dest, left, right);
-    sb_word_t b = sb_fe_sub_borrow(dest, dest, &p->p, 1);
-    // if c, add zero, since we already subtracted off the modulus
-    // otherwise if b, add p
-    sb_fe_cond_add_p_1(dest, b & (c ^ (sb_word_t) 1), p);
-    SB_ASSERT(sb_fe_equal(dest, &p->p) || sb_fe_lt(dest, &p->p),
-              "modular addition must always produce quasi-reduced output");
-    SB_ASSERT(!sb_fe_equal(dest, &SB_FE_ZERO),
-              "modular addition must always produce quasi-reduced output");
+    sb_word_t carry = sb_fe_add(dest, left, right);
+    sb_fe_qr(dest, carry, p);
 }
 
 void sb_fe_mod_double(sb_fe_t dest[static const 1],
@@ -341,9 +529,9 @@ static inline void sb_mult_add_add(sb_word_t h[static const 1],
                                    const sb_word_t c,
                                    const sb_word_t d)
 {
-#if defined(__ARM_FEATURE_DSP) && SB_MUL_SIZE == 4
-    register int h_dest = c;
-    register int l_dest = d;
+#if SB_USE_ARM_DSP_ASM
+    register sb_word_t h_dest = c;
+    register sb_word_t l_dest = d;
     __asm("umaal %0, %1, %2, %3" : "+r" (l_dest), "+r" (h_dest) : "r" (a), "r" (b));
     *h = h_dest;
     *l = l_dest;
@@ -371,7 +559,89 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
                      const sb_fe_t y[static const 1],
                      const sb_prime_field_t p[static const 1])
 {
-    *A = p->p; // A = 0
+#if SB_USE_ARM_DSP_ASM && SB_UNROLL > 0
+
+    sb_word_t hw, c, c2, x_i, u_i;
+    // Is there some arcane constraint syntax to force v_0 and v_1 to be in
+    // adjacent registers?
+    register sb_word_t A_j_0 __asm("r4");
+    register sb_word_t A_j_1 __asm("r5");
+    register sb_word_t y_j_0 __asm("r6");
+    register sb_word_t y_j_1 __asm("r7");
+#if SB_UNROLL < 3
+    sb_word_t i;
+#endif
+
+#define MM_ITER_MUL(A_0, A_1, j, e, s_0, s_1) \
+        "ldrd  %[y_j_0], %[y_j_1], [%[y], #" j "]\n\t" \
+        A_0 \
+        "umaal %[A_j_0], %[c], %[x_i], %[y_j_0]\n\t" \
+        A_1 \
+        "umaal %[A_j_1], %[c], %[x_i], %[y_j_1]\n\t" \
+        e \
+        "ldrd  %[y_j_0], %[y_j_1], [%[p], #" j "]\n\t" \
+        "umaal %[A_j_0], %[c2], %[u_i], %[y_j_0]\n\t" \
+        s_0 \
+        "umaal %[A_j_1], %[c2], %[u_i], %[y_j_1]\n\t" \
+        s_1
+
+#define MM_ITER_1_I(j, e, s_0, s_1) \
+        MM_ITER_MUL("mov %[A_j_0], #0\n\t", "mov %[A_j_1], #0\n\t", \
+                   j, e, s_0, s_1)
+
+#define MM_ITER_2_I(j, e, s_0, s_1) \
+        MM_ITER_MUL("ldrd %[A_j_0], %[A_j_1], [%[A], #" j "]\n\t", "", \
+                    j, e, s_0, s_1)
+
+#define MM_ITER(M, add, i) \
+    "mov   %[c], #0\n\t" \
+    "mov   %[c2], #0\n\t" \
+    "ldr   %[x_i], [%[x], " i "]\n\t" \
+    M("0", "mul %[u_i], %[A_j_0], %[hw]\n\t", "", "str %[A_j_1], [%[A]]\n\t") \
+    M("8", "", "str %[A_j_0], [%[A], #4]\n\t", \
+               "str %[A_j_1], [%[A], #8]\n\t") \
+    M("16", "", "str %[A_j_0], [%[A], #12]\n\t", \
+                "str %[A_j_1], [%[A], #16]\n\t") \
+    M("24", "", "str %[A_j_0], [%[A], #20]\n\t", \
+                "str %[A_j_1], [%[A], #24]\n\t") \
+    add "  %[A_j_0], %[c], %[c2]\n\t" \
+    "str   %[A_j_0], [%[A], #28]\n\t" \
+
+    __asm(
+    "ldr  %[hw], [%[p], #32]\n\t" // use hw as p->mp
+    MM_ITER(MM_ITER_1_I, "adds", "#0")
+#if SB_UNROLL < 3
+    "mov %[i], #4\n\t"
+    ".L_mont_mul_loop: "
+    MM_ITER(MM_ITER_2_I, "adcs", "%[i]")
+    "add %[i], #4\n\t"
+    "tst %[i], #32\n\t"
+    "beq .L_mont_mul_loop\n\t"
+#else
+    MM_ITER(MM_ITER_2_I, "adcs", "#4")
+    MM_ITER(MM_ITER_2_I, "adcs", "#8")
+    MM_ITER(MM_ITER_2_I, "adcs", "#12")
+    MM_ITER(MM_ITER_2_I, "adcs", "#16")
+    MM_ITER(MM_ITER_2_I, "adcs", "#20")
+    MM_ITER(MM_ITER_2_I, "adcs", "#24")
+    MM_ITER(MM_ITER_2_I, "adcs", "#28")
+#endif
+    "mov %[hw], #0\n\t"
+    "adc %[hw], %[hw], #0\n\t"
+    : [A_j_0] "=&r" (A_j_0), [A_j_1] "=&r" (A_j_1),
+      [y_j_0] "=&r" (y_j_0), [y_j_1] "=&r" (y_j_1),
+      [c] "=&r" (c), [c2] "=&r" (c2),
+      [u_i] "=&r" (u_i), [hw] "=&r" (hw),
+#if SB_UNROLL < 3
+      [i] "=&r" (i),
+#endif
+      [x_i] "=&r" (x_i), "=m" (*A)
+    : [A] "r" (A), [y] "r" (y), [p] "r" (p), [x] "r" (x),
+      "m" (*x), "m" (*y), "m" (*p) :
+      "cc");
+
+#else
+
     sb_word_t hw = 0;
 
     SB_UNROLL_2(i, 0, { // for i from 0 to (n - 1)
@@ -380,11 +650,12 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
         sb_word_t c = 0, c2 = 0;
 
         SB_UNROLL_1(j, 0, {
+            const sb_word_t A_j = (i == 0) ? 0 : SB_FE_WORD(A, j);
             // A = A + x_i * y
             sb_mult_add_add(&c, &SB_FE_WORD(A, j),
-                            x_i,
-                            SB_FE_WORD(y, j),
-                            SB_FE_WORD(A, j), c);
+            x_i,
+            SB_FE_WORD(y, j),
+            A_j, c);
 
         });
 
@@ -408,17 +679,9 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
         SB_ASSERT(hw < 2, "W + W * W + W * W overflows at most once");
     });
 
-    // if A > m or the last iteration overflowed, subtract the modulus
-    sb_word_t b = sb_fe_sub_borrow(A, A, &p->p, 1);
-    // if hw, add zero, since we already subtracted off the modulus
-    // otherwise if b, add p
-    sb_fe_cond_add_p_1(A, b & (hw ^ (sb_word_t) 1), p);
+#endif
 
-
-    SB_ASSERT(sb_fe_equal(A, &p->p) || sb_fe_lt(A, &p->p),
-              "Montgomery multiplication must always produce quasi-reduced output");
-    SB_ASSERT(!sb_fe_equal(A, &SB_FE_ZERO),
-              "Montgomery multiplication must always produce quasi-reduced output");
+    sb_fe_qr(A, hw, p);
 }
 
 void sb_fe_mont_square(sb_fe_t dest[static const restrict 1],

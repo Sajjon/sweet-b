@@ -723,13 +723,13 @@ sb_sw_scalar_valid(sb_fe_t* const k, const sb_sw_curve_t s[static const 1])
     r &= !sb_fe_equal(k, &SB_FE_ONE); // 1
     r &= !sb_fe_equal(k, &SB_FE_ZERO); // 0
 
-    sb_fe_mod_sub(k, &s->n->p, k, s->n); // -k
+    sb_fe_sub(k, &s->n->p, k); // -k
     r &= !sb_fe_equal(k, &SB_FE_ONE); // -1
     sb_fe_mod_sub(k, k, &SB_FE_ONE, s->n); // (-k) - 1
     r &= !sb_fe_equal(k, &SB_FE_ONE); // -2
 
     sb_fe_mod_add(k, k, &SB_FE_ONE, s->n); // -k
-    sb_fe_mod_sub(k, &s->n->p, k, s->n); // k
+    sb_fe_sub(k, &s->n->p, k); // k
 
     return r;
 }
@@ -785,8 +785,11 @@ sb_sw_sign(sb_sw_context_t g[static const 1],
 
     sb_sw_point_mult(g, s->gr, s);
 
+    *C_X2(g) = *C_X1(g);
+    sb_fe_qr(C_X2(g), 0, s->n);
+
     // This is used to quasi-reduce x1 modulo the curve N:
-    sb_fe_mod_sub(C_X2(g), C_X1(g), &s->n->p, s->n);
+    // sb_fe_mod_sub(C_X2(g), C_X1(g), &s->n->p, s->n);
 
     res &= !sb_fe_equal(C_X2(g), &s->n->p);
 

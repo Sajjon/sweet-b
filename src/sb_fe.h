@@ -95,13 +95,14 @@ static const sb_word_t SB_WORD_BITS_MASK = 0x07;
 
 #endif
 
-#if defined(SB_UNROLL_ALL) && !defined(SB_UNROLL_MUL)
-#define SB_UNROLL_MUL
+// Always unroll the inner multiplication loop by default
+#if !defined(SB_UNROLL)
+#define SB_UNROLL 1
 #endif
 
 // Note: when porting to a new compiler, check to see if it's smart enough to
 // optimize out the dead code when v >= SB_FE_WORDS!
-#if defined(SB_UNROLL)
+#if SB_UNROLL > 0
 #define SB_UNROLL_WORDS(v, i, ...) do { \
     sb_bitcount_t v = (i); \
     if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
@@ -137,8 +138,6 @@ static const sb_word_t SB_WORD_BITS_MASK = 0x07;
     if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
     if (v < SB_FE_WORDS) { do __VA_ARGS__ while (0); } v++; \
 } while (0)
-#else
-#define SB_UNROLL 0
 #endif
 
 #define SB_LOOP_WORDS(v, i, ...) \
@@ -177,6 +176,9 @@ static const sb_fe_t SB_FE_ZERO = SB_FE_CONST(0, 0, 0, 0);
 
 typedef struct sb_prime_field_t {
     sb_fe_t p;
+
+    sb_word_t p_mp; // -(p^-1) mod M, where M is the size of sb_dword_t
+
     // Inversion mod p uses Fermat's little theorem: n^-1 == n^(p-2) mod p
     // Inversion does not need to be constant time with respect to the chosen
     // prime, and as such it's best to use exponents with a minimum Hamming
@@ -186,7 +188,6 @@ typedef struct sb_prime_field_t {
     sb_fe_t p_minus_two_f1; // used for Fermat's little theorem based inversion
     sb_fe_t p_minus_two_f2; // second factor of p - 2
 
-    sb_word_t p_mp; // -(p^-1) mod M, where M is the size of sb_dword_t
     sb_fe_t r2_mod_p; // 2^(SB_FE_BITS * 2) mod p
     sb_fe_t r_mod_p; // 2^SB_FE_BITS mod p
     sb_bitcount_t bits; // the number of bits in the prime
@@ -215,6 +216,9 @@ extern sb_word_t sb_fe_sub(sb_fe_t dest[static 1],
                            const sb_fe_t left[static 1],
                            const sb_fe_t right[static 1]);
 
+extern void sb_fe_qr(sb_fe_t dest[static 1], sb_word_t carry,
+                     const sb_prime_field_t p[static 1]);
+
 extern sb_word_t sb_fe_lt(const sb_fe_t left[static 1],
                           const sb_fe_t right[static 1]);
 
@@ -235,9 +239,9 @@ extern void sb_fe_mod_double(sb_fe_t dest[static 1],
                              const sb_prime_field_t p[static 1]);
 
 extern void sb_fe_mont_mult(sb_fe_t dest[static restrict 1],
-                           const sb_fe_t left[static 1],
-                           const sb_fe_t right[static 1],
-                           const sb_prime_field_t p[static 1]);
+                            const sb_fe_t left[static 1],
+                            const sb_fe_t right[static 1],
+                            const sb_prime_field_t p[static 1]);
 
 extern void sb_fe_mont_square(sb_fe_t dest[static restrict 1],
                               const sb_fe_t left[static 1],
