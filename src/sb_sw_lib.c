@@ -785,11 +785,10 @@ sb_sw_sign(sb_sw_context_t g[static const 1],
 
     sb_sw_point_mult(g, s->gr, s);
 
-    *C_X2(g) = *C_X1(g);
-    sb_fe_qr(C_X2(g), 0, s->n);
 
     // This is used to quasi-reduce x1 modulo the curve N:
-    // sb_fe_mod_sub(C_X2(g), C_X1(g), &s->n->p, s->n);
+    *C_X2(g) = *C_X1(g);
+    sb_fe_qr(C_X2(g), 0, s->n);
 
     res &= !sb_fe_equal(C_X2(g), &s->n->p);
 
