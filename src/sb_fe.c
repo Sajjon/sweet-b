@@ -823,11 +823,11 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
     MM_ITER(MM_ITER_1_I, "adds", "#0")
 #if SB_UNROLL < 3
     "mov %[i], #4\n\t"
-    ".L_mont_mul_loop: "
+    ".L_mont_mul_loop%=: " // %= introduces a unique-per-__asm-statement label
     MM_ITER(MM_ITER_2_I, "adcs", "%[i]")
     "add %[i], #4\n\t"
     "tst %[i], #32\n\t" // true when i & 32 is nonzero; does not affect carry flag
-    "beq .L_mont_mul_loop\n\t"
+    "beq .L_mont_mul_loop%=\n\t"
 #else
     MM_ITER(MM_ITER_2_I, "adcs", "#4")
     MM_ITER(MM_ITER_2_I, "adcs", "#8")
