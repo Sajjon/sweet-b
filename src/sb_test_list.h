@@ -21,6 +21,7 @@ SB_DEFINE_TEST(hmac_drbg);
 SB_DEFINE_TEST(fe);
 SB_DEFINE_TEST(mont_mult);
 SB_DEFINE_TEST(mod_expt_p);
+SB_DEFINE_TEST(sw_h);
 SB_DEFINE_TEST(exceptions);
 SB_DEFINE_TEST(sw_point_mult_add);
 SB_DEFINE_TEST(sw_early_errors);
@@ -36,6 +37,7 @@ SB_DEFINE_TEST(sign_k256);
 SB_DEFINE_TEST(shared_secret_k256);
 
 // Long tests near the end
+SB_DEFINE_TEST(sw_point_mult_add_rand);
 SB_DEFINE_TEST(sign_iter);
 SB_DEFINE_TEST(sign_iter_k256);
 SB_DEFINE_TEST(shared_iter);

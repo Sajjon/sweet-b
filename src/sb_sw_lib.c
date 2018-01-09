@@ -142,33 +142,6 @@ static void sb_sw_point_co_z_add_update_zup(sb_sw_context_t c[static const 1],
                   s->p); // y3 = (y2 - y1) * (B - x3) - E
 }
 
-// Co-Z point conjugate addition with update:
-// Input:  P = (x1, y1), Q = (x2, y2) in co-Z, with x2 - x1 in t6
-// Output: P + Q = (x3, y3) in (x1, y1), P - Q = in (x2, y2), P' in (t6, t7)
-//         with Z' = Z * (x2 - x1)
-//     or: P = P + Q, Q = P - Q
-// Uses:   t5, t6, t7, t8
-// Cost:   8MM + 10A (6MM + 6A for addition-with-update + 2MM + 4A)
-static void sb_sw_point_co_z_conj_add_zup(sb_sw_context_t c[static const 1],
-                                          const sb_sw_curve_t s[static const 1])
-{
-    sb_fe_mod_add(C_T8(c), C_Y1(c), C_Y2(c), s->p); // t8 = y1 + y2
-
-    sb_sw_point_co_z_add_update_zup(c, s); // t5 = B + C
-
-    *C_T6(c) = *C_X2(c);
-    *C_T7(c) = *C_Y2(c);
-
-    sb_fe_mont_square(C_X2(c), C_T8(c), s->p); // t6 = (y1 + y2)^2 = F
-    sb_fe_mod_sub(C_X2(c), C_X2(c), C_T5(c), s->p); // t6 = F - (B + C) = x3'
-
-    sb_fe_mod_sub(C_T5(c), C_X2(c), C_T6(c), s->p); // t5 = x3' - B
-    sb_fe_mont_mult(C_Y2(c), C_T8(c), C_T5(c),
-                    s->p); // t2 = (y2 + y1) * (x3' - B)
-    sb_fe_mod_sub(C_Y2(c), C_Y2(c), C_T7(c),
-                  s->p); // y3' = (y2 + y1) * (x3' - B) - E
-}
-
 // Co-Z addition with update, with Z-update computation
 // Sets t6 to x2 - x1 before calling sb_sw_point_co_z_add_update_zup
 // Cost: 6MM + 7A
@@ -181,13 +154,30 @@ sb_sw_point_co_z_add_update(sb_sw_context_t c[static const 1],
 }
 
 // Co-Z conjugate addition with update, with Z-update computation
-// Sets t6 to x2 - x1 before calling sb_sw_point_co_z_conj_add_zup
-// Cost: 8MM + 11A
-static inline void sb_sw_point_co_z_conj_add(sb_sw_context_t c[static const 1],
-                                             const sb_sw_curve_t s[static const 1])
+// Input:  P = (x1, y1), Q = (x2, y2) in co-Z, with x2 - x1 in t6
+// Output: P + Q = (x3, y3) in (x1, y1), P - Q = in (x2, y2), P' in (t6, t7)
+//         with Z' = Z * (x2 - x1)
+//     or: P = P + Q, Q = P - Q
+// Uses:   t5, t6, t7, t8
+// Cost:   8MM + 11A (6MM + 7A for addition-with-update + 2MM + 4A)
+static void sb_sw_point_co_z_conj_add(sb_sw_context_t c[static const 1],
+                                      const sb_sw_curve_t s[static const 1])
 {
-    sb_fe_mod_sub(C_T6(c), C_X2(c), C_X1(c), s->p); // t6 = x2 - x1 = Z' / Z
-    sb_sw_point_co_z_conj_add_zup(c, s);
+    sb_fe_mod_add(C_T8(c), C_Y1(c), C_Y2(c), s->p); // t8 = y1 + y2
+
+    sb_sw_point_co_z_add_update(c, s); // t5 = B + C
+
+    *C_T6(c) = *C_X2(c);
+    *C_T7(c) = *C_Y2(c);
+
+    sb_fe_mont_square(C_X2(c), C_T8(c), s->p); // t6 = (y1 + y2)^2 = F
+    sb_fe_mod_sub(C_X2(c), C_X2(c), C_T5(c), s->p); // t6 = F - (B + C) = x3'
+
+    sb_fe_mod_sub(C_T5(c), C_X2(c), C_T6(c), s->p); // t5 = x3' - B
+    sb_fe_mont_mult(C_Y2(c), C_T8(c), C_T5(c),
+                    s->p); // t2 = (y2 + y1) * (x3' - B)
+    sb_fe_mod_sub(C_Y2(c), C_Y2(c), C_T7(c),
+                  s->p); // y3' = (y2 + y1) * (x3' - B) - E
 }
 
 // Regularize the bit count of the scalar by adding CURVE_N or 2 * CURVE_N
@@ -437,18 +427,20 @@ sb_sw_point_mult(sb_sw_context_t m[static const 1],
 
 // Multiplication-addition using Shamir's trick to produce k_1 * P + k_2 * Q
 
-// sb_sw_point_mult_add_z_update is called before point addition or
-// conjugate-addition to precompute the resulting Z value
+// sb_sw_point_mult_add_z_update computes the new Z and then performs co-Z
+// point addition at a cost of 7MM + 7A
 static void sb_sw_point_mult_add_z_update(sb_sw_context_t q[static const 1],
                                           const sb_sw_curve_t s[static const 1])
 {
     sb_fe_mod_sub(C_T6(q), C_X2(q), C_X1(q), s->p); // t6 = x2 - x1 = Z' / Z
     sb_fe_mont_mult(C_T5(q), C_T6(q), MULT_Z(q), s->p); // updated Z
     *MULT_Z(q) = *C_T5(q);
+
+    sb_sw_point_co_z_add_update_zup(q, s);
 }
 
 // sb_sw_point_mult_add_apply_z applies a Z value to the selected point
-// (P, G, or P + G)
+// (H, P + H, G + H, or P + G + H) at a cost of 4MM
 static void sb_sw_point_mult_add_apply_z(sb_sw_context_t q[static const 1],
                                          const sb_sw_curve_t s[static const 1])
 {
@@ -469,12 +461,17 @@ static void sb_sw_point_mult_add_select(const sb_word_t bp, const sb_word_t bg,
                                         const sb_sw_curve_t s[static const 1])
 {
     // select a point S for conjugate addition with R
-    // if bp = 0 and bg = 0, select g
-    // if bp = 0 and bg = 1, select g
-    // if bp = 1 and bg = 0, select p
-    // if bp = 1 and bg = 1, select pg
-    *C_X2(q) = s->gr[0];
-    *C_Y2(q) = s->gr[1];
+    // if bp = 0 and bg = 0, select h
+    // if bp = 0 and bg = 1, select g + h
+    // if bp = 1 and bg = 0, select p + h
+    // if bp = 1 and bg = 1, select p + g + h
+    *C_X2(q) = s->h_r[0];
+    *C_Y2(q) = s->h_r[1];
+
+    *C_T5(q) = s->g_h_r[0];
+    *C_T6(q) = s->g_h_r[1];
+    sb_fe_ctswap(bg, C_X2(q), C_T5(q));
+    sb_fe_ctswap(bg, C_Y2(q), C_T6(q));
 
     *C_T5(q) = MULT_POINT(q)[0];
     *C_T6(q) = MULT_POINT(q)[1];
@@ -496,7 +493,10 @@ static void sb_sw_point_mult_add_z(sb_sw_context_t q[static const 1],
     sb_fe_t* const kp = MULT_K(q);
     sb_fe_t* const kg = MULT_ADD_KG(q);
 
-    // Regularize the input scalars so the ladder starts at P + G
+    // Subtract one from kg to account for the addition of (2^257 - 1) * H = G
+    sb_fe_sub(kg, kg, &SB_FE_ONE);
+
+    // Regularize the input scalars so the ladder starts at P + G + H
     sb_sw_regularize_scalar(kp, q, s);
     sb_sw_regularize_scalar(kg, q, s);
 
@@ -506,37 +506,53 @@ static void sb_sw_point_mult_add_z(sb_sw_context_t q[static const 1],
     sb_fe_mont_mult(C_Y1(q), &MULT_POINT(q)[1], &s->p->r2_mod_p, s->p);
     MULT_POINT(q)[1] = *C_Y1(q);
 
-    *C_X2(q) = s->gr[0];
-    *C_Y2(q) = s->gr[1];
+    *C_X2(q) = s->h_r[0];
+    *C_Y2(q) = s->h_r[1];
 
     // Save initial Z in T8 until it can be applied
     *C_T8(q) = *MULT_Z(q);
 
-    // Compute the Z coordinate that will result from the co-Z addition of P + Q
+    // P and H are in affine coordinates, so our current Z is one (R in
+    // Montgomery domain)
     *MULT_Z(q) = s->p->r_mod_p;
+
+    // (x1, x2) = P + H; (x2, y2) = P'
     sb_sw_point_mult_add_z_update(q, s);
 
-    // (x1, x2) = P + G; (x2, y2) = P'
-    sb_sw_point_co_z_add_update_zup(q, s);
+    // Apply Z to G before co-Z addition of (P + H) and G
+    *C_X2(q) = s->g_r[0];
+    *C_Y2(q) = s->g_r[1];
+    sb_sw_point_mult_add_apply_z(q, s);
 
-    // Invert Z and multiply so that P + G is in affine coordinates
+    // (x1, x2) = P + G + H; (x2, y2) = P + H
+    sb_sw_point_mult_add_z_update(q, s);
+
+    // Invert Z and multiply so that P + H and P + G + H are in affine
+    // coordinates
     *C_T5(q) = *MULT_Z(q); // t5 = Z * R
     sb_fe_mod_inv_r(C_T5(q), C_T6(q), C_T7(q), s->p); // t5 = Z^-1 * R
     sb_fe_mont_square(C_T6(q), C_T5(q), s->p); // t6 = Z^-2 * R
     sb_fe_mont_mult(C_T7(q), C_T5(q), C_T6(q), s->p); // t7 = Z^-3 * R
+
+    // Apply Z to P + H
+    sb_fe_mont_mult(&MULT_POINT(q)[0], C_X2(q), C_T6(q), s->p);
+    sb_fe_mont_mult(&MULT_POINT(q)[1], C_Y2(q), C_T7(q), s->p);
+
+    // Apply Z to P + G + H
     sb_fe_mont_mult(&MULT_ADD_PG(q)[0], C_X1(q), C_T6(q), s->p);
     sb_fe_mont_mult(&MULT_ADD_PG(q)[1], C_Y1(q), C_T7(q), s->p);
 
-    // Computation begins with R = P + G due to regularization of the scalars
-    // If bit 255 of kp and kpg are both 1, this would lead to a point doubling!
+    // Computation begins with R = P + G + H due to regularization of the
+    // scalars. If bit 255 of kp and kpg are both 1, this would lead to a
+    // point doubling!
     // Avoid the inadvertent doubling in the first bit, so that the regular
-    // ladder can start at 2 * (P + G) + S
+    // ladder can start at 2 * (P + G + H) + S
 
     *C_X2(q) = MULT_ADD_PG(q)[0];
     *C_Y2(q) = MULT_ADD_PG(q)[1];
 
     sb_sw_point_initial_double(q, s);
-    // 2 * (P + G) is in (x2, y2); Z is in t5
+    // 2 * (P + G + H) is now in (x2, y2); Z is in t5
 
     // apply initial Z
     *MULT_Z(q) = *C_T8(q);
@@ -546,70 +562,46 @@ static void sb_sw_point_mult_add_z(sb_sw_context_t q[static const 1],
     sb_fe_mont_mult(C_T6(q), MULT_Z(q), C_T5(q), s->p);
     *MULT_Z(q) = *C_T6(q);
 
-    // move 2 * (P + G) to (x1, y1)
-
+    // move 2 * (P + G + H) to (x1, y1)
     *C_X1(q) = *C_X2(q);
     *C_Y1(q) = *C_Y2(q);
 
-    {
-        const sb_word_t bp = sb_fe_test_bit(kp, SB_FE_BITS - 1);
-        const sb_word_t bg = sb_fe_test_bit(kg, SB_FE_BITS - 1);
-
-        // Add (G, P, P + G), producing 2 * (P + G) + S, 2 * (P + G)
-
-        sb_sw_point_mult_add_select(bp, bg, q, s);
-
-        sb_sw_point_mult_add_z_update(q, s);
-        sb_sw_point_co_z_add_update_zup(q, s);
-
-        // Select 2 * (P + G) if bp == 0 and bg == 0
-        sb_fe_ctswap((bp | bg) ^ (sb_word_t) 1, C_X1(q), C_X2(q));
-        sb_fe_ctswap((bp | bg) ^ (sb_word_t) 1, C_Y1(q), C_Y2(q));
-    }
-
-    // 14MM + 2MM Z-updates + 4MM co-Z update = 20MM per bit
+    // 14MM + 14A + 4MM co-Z update = 18MM + 14A per bit
     // Note that mixed Jacobian-affine doubling-addition can be done in 18MM.
     // Assuming a Hamming weight of ~128 on both scalars and 8MM doubling, the
     // expected performance of a conditional Jacobian double-and-add
     // implementation would be (3/4 * 18MM) + (1/4 * 8MM) = 15.5MM/bit
 
-    // The algorithm used here is regular and reuses the existing addition and
-    // conjugate addition operations. Conventional wisdom says that signature
-    // verification does not need to be constant time; however, it's not clear
-    // to me that this holds in all cases. For instance, an embedded system
-    // might leak information about its firmware version by the amount of
-    // time that it takes to verify a signature on boot.
+    // The algorithm used here is regular and reuses the existing co-Z addition
+    // operation. Conventional wisdom says that signature verification does
+    // not need to be constant time; however, it's not clear to me that this
+    // holds in all cases. For instance, an embedded system might leak
+    // information about its firmware version by the amount of time that it
+    // takes to verify a signature on boot.
 
     // If you want a variable-time ladder, consider using Algorithms 14 and
     // 17 from Rivain 2011 instead.
 
-    // Note that this algorithm is NOT safe against fault-injection attacks,
-    // as the result of the conjugate addition is conditionally used or not
-    // used depending on the bits selected. It may also not be SPA- or
-    // DPA-resistant, as P, G, and P + G are stored and used in affine
-    // coordinates, so the co-Z update of these variables might be detectable
-    // even with Z blinding. If this matters for signature verification in
-    // your application, please contact the authors for commercial support.
+    // Note that this algorithm may also not be SPA- or DPA-resistant, as H,
+    // P + H, G + H, and P + G + H are stored and used in affine coordinates,
+    // so the co-Z update of these variables might be detectable even with
+    // Z blinding. If this matters for signature verification in your
+    // application, please contact the authors for commercial support.
 
-    for (size_t i = SB_FE_BITS - 2; i < SB_FE_BITS; i--) {
+    for (size_t i = SB_FE_BITS - 1; i < SB_FE_BITS; i--) {
         const sb_word_t bp = sb_fe_test_bit(kp, i);
         const sb_word_t bg = sb_fe_test_bit(kg, i);
 
         sb_sw_point_mult_add_select(bp, bg, q, s);
 
-        // (x1, y1) = (R + S), (x2, y2) = (R - S), (t6, t7) = R'
+        // (x1, y1) = (R + S), (x2, y2) = R'
         sb_sw_point_mult_add_z_update(q, s);
-        sb_sw_point_co_z_conj_add_zup(q, s);
 
-        // if bp = 0 and bg = 0, keep R - S in (x2, y2)
-        // otherwise swap R' into (x2, y2)
-        sb_fe_ctswap((sb_word_t) (bp || bg), C_X2(q), C_T6(q));
-        sb_fe_ctswap((sb_word_t) (bp || bg), C_Y2(q), C_T7(q));
-
-        // if bp = 1 || bg = 1, R := (R + S) + R = 2 * R + S
-        // if bp = 0 && bg = 0, R := (R + S) + (R - S) = 2 * R
-        sb_sw_point_mult_add_z_update(q, s);
-        sb_sw_point_co_z_add_update_zup(q, s);
+        // The initial point has already been doubled
+        if (i < SB_FE_BITS - 1) {
+            // R := (R + S) + R = 2 * R + S
+            sb_sw_point_mult_add_z_update(q, s);
+        }
     }
 
     *C_T6(q) = *C_X1(q);
@@ -621,51 +613,88 @@ static void sb_sw_point_mult_add_z(sb_sw_context_t q[static const 1],
 
 #ifdef SB_TEST
 
-_Bool sb_test_sw_point_mult_add(void)
+// Test that A * (B * G) + C * G = (A * B + C) * G
+static _Bool test_sw_point_mult_add(const sb_fe_t* const ka,
+                                    const sb_fe_t* const kb,
+                                    const sb_fe_t* const kc,
+                                    const sb_sw_curve_t* const s)
 {
-    sb_fe_t k17 = SB_FE_CONST(0, 0, 0, 17);
-    sb_fe_t k3 = SB_FE_CONST(0, 0, 0, 3);
-    sb_fe_t k4 = SB_FE_CONST(0, 0, 0, 4);
-    sb_fe_t k5 = SB_FE_CONST(0, 0, 0, 5);
-
     sb_sw_context_t m;
     memset(&m, 0, sizeof(m));
+
+    sb_fe_t kabc;
+
+    sb_fe_mont_mult(C_T5(&m), ka, kb, s->n);
+    sb_fe_mont_mult(&kabc, C_T5(&m), &s->n->r2_mod_p, s->n);
+    sb_fe_mod_add(&kabc, &kabc, kc, s->n);
+
     *MULT_Z(&m) = SB_FE_ONE;
 
-    *MULT_K(&m) = k3;
-    sb_sw_point_mult(&m, SB_CURVE_P256.gr, &SB_CURVE_P256);
+    *MULT_K(&m) = *kb;
+    sb_sw_point_mult(&m, s->g_r, s);
 
-    sb_fe_t p3[] = { *C_X1(&m), *C_Y1(&m) };
+    sb_fe_t pb[] = { *C_X1(&m), *C_Y1(&m) };
 
-    *MULT_K(&m) = k17;
-    sb_sw_point_mult(&m, SB_CURVE_P256.gr, &SB_CURVE_P256);
+    *MULT_K(&m) = kabc;
+    sb_sw_point_mult(&m, s->g_r, s);
 
-    sb_fe_t p17[] = { *C_X1(&m), *C_Y1(&m) };
+    sb_fe_t pabc[] = { *C_X1(&m), *C_Y1(&m) };
 
     sb_sw_context_t q;
     memset(&q, 0, sizeof(q));
     *MULT_Z(&q) = SB_FE_ONE;
 
-    MULT_POINT(&q)[0] = p3[0];
-    MULT_POINT(&q)[1] = p3[1];
-    *MULT_K(&q) = k4;
-    *MULT_ADD_KG(&q) = k5;
+    MULT_POINT(&q)[0] = pb[0];
+    MULT_POINT(&q)[1] = pb[1];
+    *MULT_K(&q) = *ka;
+    *MULT_ADD_KG(&q) = *kc;
 
-    // 4 * (3 * G) + 5 * G = 17 * G
-    sb_sw_point_mult_add_z(&q, &SB_CURVE_P256);
+    // A * (B * G) + C * G = (A * B + C) * G
+    sb_sw_point_mult_add_z(&q, s);
 
-    // put p17 in co-Z with the result
-    sb_fe_mont_square(C_T6(&q), C_T5(&q), SB_CURVE_P256.p); // t6 = Z^2 * R
-    sb_fe_mont_mult(C_T7(&q), C_T6(&q), C_T5(&q), SB_CURVE_P256.p); //
-    // t7 =
-    // Z^3 * R
+    // put pabc in co-Z with the result
+    sb_fe_mont_square(C_T6(&q), C_T5(&q), s->p); // t6 = Z^2 * R
+    sb_fe_mont_mult(C_T7(&q), C_T6(&q), C_T5(&q), s->p); // t7 = Z^3 * R
 
-    sb_fe_mont_mult(C_X2(&q), C_T6(&q), &p17[0], SB_CURVE_P256.p); // x2 = x *
-    // Z^2
-    sb_fe_mont_mult(C_Y2(&q), C_T7(&q), &p17[1], SB_CURVE_P256.p); // y2 = y *
-    // Z^3
+    sb_fe_mont_mult(C_X2(&q), C_T6(&q), &pabc[0], s->p); // x2 = x * Z^2
+    sb_fe_mont_mult(C_Y2(&q), C_T7(&q), &pabc[1], s->p); // y2 = y * Z^3
     SB_TEST_ASSERT(
         sb_fe_equal(C_X1(&q), C_X2(&q)) && sb_fe_equal(C_Y1(&q), C_Y2(&q)));
+    return 1;
+}
+
+static _Bool generate_fe(sb_fe_t* const fe, sb_hmac_drbg_state_t* const drbg)
+{
+    sb_single_t s;
+    SB_TEST_ASSERT_SUCCESS(sb_hmac_drbg_generate(drbg, s.bytes, SB_ELEM_BYTES));
+    sb_fe_from_bytes(fe, s.bytes, SB_DATA_ENDIAN_BIG);
+    return 1;
+}
+
+_Bool sb_test_sw_point_mult_add(void)
+{
+    sb_fe_t ka = SB_FE_CONST(0, 0, 0, 3);
+    sb_fe_t kb = SB_FE_CONST(0, 0, 0, 4);
+    sb_fe_t kc = SB_FE_CONST(0, 0, 0, 6);
+    SB_TEST_ASSERT(test_sw_point_mult_add(&ka, &kb, &kc, &SB_CURVE_P256));
+    SB_TEST_ASSERT(test_sw_point_mult_add(&ka, &kb, &kc, &SB_CURVE_SECP256K1));
+    return 1;
+}
+
+_Bool sb_test_sw_point_mult_add_rand(void)
+{
+    sb_fe_t ka, kb, kc;
+    sb_hmac_drbg_state_t drbg;
+    memset(&drbg, 0, sizeof(drbg));
+
+    for (size_t i = 0; i < 64; i++) {
+        SB_TEST_ASSERT(generate_fe(&ka, &drbg));
+        SB_TEST_ASSERT(generate_fe(&kb, &drbg));
+        SB_TEST_ASSERT(generate_fe(&kc, &drbg));
+        SB_TEST_ASSERT(test_sw_point_mult_add(&ka, &kb, &kc, &SB_CURVE_P256));
+        SB_TEST_ASSERT(test_sw_point_mult_add(&ka, &kb, &kc, &SB_CURVE_SECP256K1));
+        drbg.reseed_counter = 1;
+    }
     return 1;
 }
 
@@ -736,6 +765,47 @@ sb_sw_scalar_valid(sb_fe_t* const k, const sb_sw_curve_t s[static const 1])
 
 #ifdef SB_TEST
 
+static _Bool test_h(const sb_sw_curve_t* s)
+{
+    sb_sw_context_t m;
+    memset(&m, 0, sizeof(m));
+    *MULT_Z(&m) = SB_FE_ONE;
+    *MULT_K(&m) = (sb_fe_t) SB_FE_CONST(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
+                                        0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF);
+    sb_fe_sub(MULT_K(&m), MULT_K(&m), &s->n->p);
+    sb_fe_sub(MULT_K(&m), MULT_K(&m), &s->n->p);
+    const sb_fe_t h_inv = *MULT_K(&m);
+    sb_fe_mont_mult(C_T5(&m), MULT_K(&m), &s->n->r2_mod_p,
+                    s->n);
+    sb_fe_mod_inv_r(C_T5(&m), C_T6(&m), C_T7(&m), s->n);
+    sb_fe_mont_mult(MULT_K(&m), C_T5(&m), &SB_FE_ONE, s->n);
+    sb_sw_point_mult(&m, s->g_r, s);
+
+    sb_fe_mont_mult(&MULT_POINT(&m)[0], C_X1(&m), &s->p->r2_mod_p, s->p);
+    sb_fe_mont_mult(&MULT_POINT(&m)[1], C_Y1(&m), &s->p->r2_mod_p, s->p);
+
+    SB_TEST_ASSERT(sb_fe_equal(&MULT_POINT(&m)[0], &s->h_r[0]));
+    SB_TEST_ASSERT(sb_fe_equal(&MULT_POINT(&m)[1], &s->h_r[1]));
+
+
+    *MULT_K(&m) = h_inv;
+    sb_sw_point_mult(&m, MULT_POINT(&m), s);
+    sb_fe_mont_mult(C_X2(&m), &s->g_r[0], &SB_FE_ONE, s->p);
+    sb_fe_mont_mult(C_Y2(&m), &s->g_r[1], &SB_FE_ONE, s->p);
+    SB_TEST_ASSERT(sb_fe_equal(C_X1(&m), C_X2(&m)));
+    SB_TEST_ASSERT(sb_fe_equal(C_Y1(&m), C_Y2(&m)));
+
+    return 1;
+}
+
+_Bool sb_test_sw_h(void)
+{
+    SB_TEST_ASSERT(test_h(&SB_CURVE_P256));
+    SB_TEST_ASSERT(test_h(&SB_CURVE_SECP256K1));
+
+    return 1;
+}
+
 // The following scalars cause exceptions in the ladder and are NOT valid.
 _Bool sb_test_exceptions(void)
 {
@@ -748,7 +818,7 @@ _Bool sb_test_exceptions(void)
 
 #define TEST_EX() do { \
     SB_TEST_ASSERT(!sb_sw_scalar_valid(MULT_K(&m), &SB_CURVE_P256)); \
-    sb_sw_point_mult(&m, SB_CURVE_P256.gr, &SB_CURVE_P256); \
+    sb_sw_point_mult(&m, SB_CURVE_P256.g_r, &SB_CURVE_P256); \
     SB_TEST_ASSERT(sb_fe_equal(C_X1(&m), &EX_ZERO(SB_CURVE_P256)) && \
            sb_fe_equal(C_Y1(&m), &EX_ZERO(SB_CURVE_P256))); \
 } while (0)
@@ -783,7 +853,7 @@ sb_sw_sign(sb_sw_context_t g[static const 1],
 {
     _Bool res = 1;
 
-    sb_sw_point_mult(g, s->gr, s);
+    sb_sw_point_mult(g, s->g_r, s);
 
 
     // This is used to quasi-reduce x1 modulo the curve N:
@@ -1011,7 +1081,7 @@ sb_error_t sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
     err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
                        !sb_sw_scalar_valid(MULT_K(ctx), s));
 
-    sb_sw_point_mult(ctx, s->gr, s);
+    sb_sw_point_mult(ctx, s->g_r, s);
 
     // This should not occur with valid scalars.
     err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
@@ -1375,10 +1445,12 @@ _Bool sb_test_shared_secret_cavp_1(void)
     sb_sw_shared_secret_t out;
     sb_sw_public_t c_pub2;
     SB_TEST_ASSERT_SUCCESS(sb_sw_compute_public_key(&ct, &c_pub2, &priv2, NULL,
-                                   SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG));
+                                                    SB_SW_CURVE_P256,
+                                                    SB_DATA_ENDIAN_BIG));
     SB_TEST_ASSERT_EQUAL(c_pub2, pub2);
     SB_TEST_ASSERT_SUCCESS(sb_sw_shared_secret(&ct, &out, &priv2, &pub1, NULL,
-                               SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG));
+                                               SB_SW_CURVE_P256,
+                                               SB_DATA_ENDIAN_BIG));
     SB_TEST_ASSERT_EQUAL(out, secret);
     return 1;
 }

@@ -36,7 +36,9 @@ typedef struct sb_sw_curve_t {
     sb_fe_t minus_a; // -a (3 for P256, 0 for secp256k1)
     const sb_fe_t* minus_a_r_over_three; // R for P256, 0 for secp256k1
     sb_fe_t b; // b ("random" for P256, 7 for secp256k1)
-    sb_fe_t gr[2]; // The generator for the group, with X and Y multiplied by R
+    sb_fe_t g_r[2]; // The generator for the group, with X and Y multiplied by R
+    sb_fe_t h_r[2]; // H = (2^257 - 1)^-1 * G, with X and Y multiplied by R
+    sb_fe_t g_h_r[2]; // G + H, with X and Y multiplied by R
 } sb_sw_curve_t;
 
 #if SB_SW_P256_SUPPORT
@@ -96,11 +98,23 @@ static const sb_sw_curve_t SB_CURVE_P256 = {
     .minus_a_r_over_three = &SB_CURVE_P256_P.r_mod_p,
     .b = SB_FE_CONST(0x5AC635D8AA3A93E7, 0xB3EBBD55769886BC,
                      0x651D06B0CC53B0F6, 0x3BCE3C3E27D2604B),
-    .gr = {
+    .g_r = {
         SB_FE_CONST(0x18905F76A53755C6, 0x79FB732B77622510,
                     0x75BA95FC5FEDB601, 0x79E730D418A9143C),
         SB_FE_CONST(0x8571FF1825885D85, 0xD2E88688DD21F325,
                     0x8B4AB8E4BA19E45C, 0xDDF25357CE95560A)
+    },
+    .h_r = {
+        SB_FE_CONST(0x3DABB6DD63469FDA, 0xD6636C75F0AEE963,
+                    0x5E3BDEACE03C7C1E, 0x599DE4BA95AEDB71),
+        SB_FE_CONST(0xCA44FCA952D8F196, 0x7AC346280EA74210,
+                    0x77AE0F653969D951, 0x3EF12A374A0D7441)
+    },
+    .g_h_r = {
+        SB_FE_CONST(0x41FBBA1A1842253C, 0x2DDFA21F8A5F4377,
+                    0x928D36DAB2C0BD2F, 0x2C487DEB40FA32F9),
+        SB_FE_CONST(0xD041EE1CCC6223C9, 0xCD81EFC57B6F0943,
+                    0xC614355C4D10A425, 0x3A1739581FCABBB7)
     }
 };
 
@@ -162,11 +176,23 @@ static const sb_sw_curve_t SB_CURVE_SECP256K1 = {
                            0xFFFFFFFFFFFFFFFF, 0xFFFFFFFEFFFFFC2F),
     .minus_a_r_over_three = &SB_CURVE_SECP256K1_P.p,
     .b = SB_FE_CONST(0, 0, 0, 7),
-    .gr = {
+    .g_r = {
         SB_FE_CONST(0x9981E643E9089F48, 0x979F48C033FD129C,
                     0x231E295329BC66DB, 0xD7362E5A487E2097),
         SB_FE_CONST(0xCF3F851FD4A582D6, 0x70B6B59AAC19C136,
                     0x8DFC5D5D1F1DC64D, 0xB15EA6D2D3DBABE2)
+    },
+    .h_r = {
+        SB_FE_CONST(0x30A198DEBBCEFCAE, 0x537053ECF418BA53,
+                    0xD8C36C4D8EC6CE34, 0xA381C3D21219CA1C),
+        SB_FE_CONST(0xC198D9AFBD3AB7C6, 0xA5495A07C2AFCCE5,
+                    0xF671D727A3637755, 0x446A2AD0C25FF948)
+    },
+    .g_h_r = {
+        SB_FE_CONST(0x7BCE0EF2C201767E, 0xEC431492C7C96E54,
+                    0x15EF56335DF148DB, 0xCDA8D7EF632EA0D8),
+        SB_FE_CONST(0x3FB97A191E4DE5EA, 0xBBA21827B7EFEC04,
+                    0xC7B977CC32E0BAA9, 0xC374BB2A1315A22F)
     }
 };
 
