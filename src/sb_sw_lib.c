@@ -486,6 +486,45 @@ static void sb_sw_point_mult_add_select(const sb_word_t bp, const sb_word_t bg,
     sb_sw_point_mult_add_apply_z(q, s);
 }
 
+// Signature verification uses a regular double-and-add algorithm with Shamir's
+// trick for dual scalar-basepoint multiplication. Because adding O (the
+// point at infinity) is an exceptional case in the standard formulae for
+// point addition on short Weierstrass curves, each iteration adds an
+// additional point H. Due to regularization of the input scalars,
+// the algorithm starts with bit 256 in both k_p and k_g set, so the initial
+// value is P + G + H, and at the end of the loop, (2^257 - 1) * H has been
+// added, producing k_p * P + k_g * G + (2^257 - 1) * H. To correct for this,
+// one could subtract the extra multiple of H at the end of the algorithm,
+// but instead H has been chosen so that we can easily adjust k_g before the
+// multiplication instead. Let H be (2^257 - 1)^-1 * G. Then compute:
+//   k_p * P + (k_g - 1) * G + (2^257 - 1) * H
+// = k_p * P + (k_g - 1) * G + (2^257 - 1) * (2^257 - 1)^-1 * G
+// = k_p * P + (k_g - 1) * G + G
+// = k_p * P + k_g * G
+
+// The algorithm is as follows:
+
+// Given inputs k_p, P, k_g on some curve with base point G, and let H as
+// above, with G + H precomputed
+
+// 1. Compute P + H and P + G + H
+
+// Let S(b_p, b_g) be:         H if b_p == 0 && b_g == 0
+//                         P + H if b_p == 1 && b_g == 0
+//                         G + H if b_p == 0 && b_g == 1
+//                     P + G + H if b_p == 1 && b_g == 1
+
+// 2. k_g := k_g - 1
+// 3. k_p := regularize(k_p)
+// 4. k_g := regularize(k_g)
+// 5. R := P + G + H
+// 6. R := 2 * R
+// 7. R := R + S(k_p_255, k_g_255)
+// 8. for i from 254 downto 0:
+//    8.1. R' := R + S(k_p_i, k_g_i)
+//    8.2. R  := R + R'
+// 9. return R
+
 // Produces kp * P + kg * G in (x1, y1) with Z * R in t5
 static void sb_sw_point_mult_add_z(sb_sw_context_t q[static const 1],
                                    const sb_sw_curve_t s[static const 1])
