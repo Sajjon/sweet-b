@@ -66,12 +66,14 @@ typedef enum sb_sw_curve_id_t {
 // sb_error_t the bitwise or of multiple error values; you MUST test for
 // specific error values by checking whether the appropriate bit is set in
 // the return value. Two errors (CURVE_INVALID and RESEED_REQUIRED) are
-// returned "early", which is to say that no further computation is performed
-// if either of these errors is true. Otherwise, the function will run to
-// completion in constant time with respect to the non-curve inputs; if the
-// function produces output, the output returned will be junk if the return
-// value is not SB_SUCCESS. See sb_sw_valid_public_key and
-// sb_sw_verify_signature for notes on the return value of these functions.
+// returned immediately, which is to say that no further computation is
+// performed if either of these errors is true. If the function accepts a
+// private or public key, the key(s) will be validated before any computation
+// is performed. Otherwise, the function will run to completion in constant
+// time with respect to the non-curve inputs; if the function produces
+// output, the output returned will be junk if the return value is not
+// SB_SUCCESS. See sb_sw_valid_public_key and sb_sw_verify_signature for
+// notes on the return value of these functions.
 
 // sb_sw_generate_private_key:
 

@@ -66,4 +66,23 @@ typedef enum sb_error_shift_t {
 
 #define SB_ERROR_IF(err, cond) (((sb_error_t) (cond)) << SB_ERROR_SHIFT_ ## err)
 
+#define SB_RETURN_ERRORS_2(err, zero_ctx) do { \
+    if (err) { \
+        memset((zero_ctx), 0, sizeof(*(zero_ctx))); \
+        return err; \
+    } \
+} while (0)
+
+#define SB_RETURN_ERRORS_1(err, unused) do { \
+    if (err) { \
+        return err; \
+    } \
+} while (0)
+
+#define SB_RETURN_ERRORS_n(a, b, c, ...) c(a, b)
+
+#define SB_RETURN_ERRORS(...) \
+    SB_RETURN_ERRORS_n(__VA_ARGS__, SB_RETURN_ERRORS_2, SB_RETURN_ERRORS_1, \
+                       NOT_ENOUGH_ARGUMENTS)
+
 #endif

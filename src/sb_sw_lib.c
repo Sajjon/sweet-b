@@ -731,7 +731,8 @@ _Bool sb_test_sw_point_mult_add_rand(void)
         SB_TEST_ASSERT(generate_fe(&kb, &drbg));
         SB_TEST_ASSERT(generate_fe(&kc, &drbg));
         SB_TEST_ASSERT(test_sw_point_mult_add(&ka, &kb, &kc, &SB_CURVE_P256));
-        SB_TEST_ASSERT(test_sw_point_mult_add(&ka, &kb, &kc, &SB_CURVE_SECP256K1));
+        SB_TEST_ASSERT(
+            test_sw_point_mult_add(&ka, &kb, &kc, &SB_CURVE_SECP256K1));
         drbg.reseed_counter = 1;
     }
     return 1;
@@ -965,16 +966,21 @@ static _Bool sb_sw_verify(sb_sw_context_t v[static const 1],
     return res & ver;
 }
 
-static const sb_sw_curve_t* sb_sw_curve_from_id(sb_sw_curve_id_t const curve)
+static sb_error_t sb_sw_curve_from_id(const sb_sw_curve_t** const s,
+                                      sb_sw_curve_id_t const curve)
 {
     switch (curve) {
 #if SB_SW_P256_SUPPORT
-        case SB_SW_CURVE_P256:
-            return &SB_CURVE_P256;
+        case SB_SW_CURVE_P256: {
+            *s = &SB_CURVE_P256;
+            return 0;
+        }
 #endif
 #if SB_SW_SECP256K1_SUPPORT
-        case SB_SW_CURVE_SECP256K1:
-            return &SB_CURVE_SECP256K1;
+        case SB_SW_CURVE_SECP256K1: {
+            *s = &SB_CURVE_SECP256K1;
+            return 0;
+        }
 #endif
 #ifdef SB_TEST
         case SB_SW_CURVE_INVALID:
@@ -982,7 +988,8 @@ static const sb_sw_curve_t* sb_sw_curve_from_id(sb_sw_curve_id_t const curve)
 #endif
     }
     // Huh?
-    return NULL;
+    *s = NULL;
+    return SB_ERROR_CURVE_INVALID;
 }
 
 // a Z value is invalid if it is zero, since the only point with Z = 0 is the
@@ -990,7 +997,7 @@ static const sb_sw_curve_t* sb_sw_curve_from_id(sb_sw_curve_id_t const curve)
 static sb_error_t sb_sw_z_valid(const sb_fe_t z[static const 1],
                                 const sb_sw_curve_t s[static const 1])
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
     err |= SB_ERROR_IF(DRBG_FAILURE, sb_fe_equal(z, &SB_FE_ZERO));
     err |= SB_ERROR_IF(DRBG_FAILURE, sb_fe_equal(z, &s->p->p));
     return err;
@@ -1004,7 +1011,8 @@ static sb_error_t sb_sw_generate_z(sb_sw_context_t c[static const 1],
                                    const sb_byte_t* const d2, const size_t l2,
                                    const sb_byte_t* const d3, const size_t l3)
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
+
     if (drbg) {
         // Use the supplied data as additional input to the DRBG
         const sb_byte_t* const add[SB_HMAC_DRBG_ADD_VECTOR_LEN] = {
@@ -1024,8 +1032,16 @@ static sb_error_t sb_sw_generate_z(sb_sw_context_t c[static const 1],
                                  d2, l2,
                                  d3, l3);
 
+        // It is a bug if this ever fails; the DRBG limits should allow these
+        // inputs.
+        SB_ASSERT(!err, "DRBG initialization should never fail.");
+
         err |= sb_hmac_drbg_generate(&c->drbg_state, c->buf, SB_ELEM_BYTES);
     }
+
+    // It is a bug if this ever fails; the DRBG reseed count should have
+    // been checked already, and the DRBG limits should allow these inputs.
+    SB_ASSERT(!err, "Z generation should never fail.");
 
     sb_fe_from_bytes(MULT_Z(c), c->buf, SB_DATA_ENDIAN_BIG);
     err |= sb_sw_z_valid(MULT_Z(c), s);
@@ -1034,28 +1050,25 @@ static sb_error_t sb_sw_generate_z(sb_sw_context_t c[static const 1],
 
 //// PUBLIC API:
 
+/// FIPS 186-4-style private key generation. Note that this only tests two
+/// candidates; the probability of both candidates failing is extremely low.
 sb_error_t sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
                                       sb_sw_private_t private[static const 1],
                                       sb_hmac_drbg_state_t drbg[static const 1],
                                       sb_sw_curve_id_t const curve,
                                       sb_data_endian_t const e)
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
-    const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
+    const sb_sw_curve_t* s;
+    err |= sb_sw_curve_from_id(&s, curve);
 
-    if (!s) {
-        err |= SB_ERROR_CURVE_INVALID;
-    }
-
-    // Bail out early if the DRBG needs to be reseeded
-    // It takes two generate calls to generate a private key
+    // Avoid modifying the input drbg state if the second generate call fails.
+    // It takes two generate calls to generate a private key.
     err |= sb_hmac_drbg_reseed_required(drbg, 2);
 
-    if (err) {
-        return err;
-    }
+    SB_RETURN_ERRORS(err);
 
     // With P-256, the chance of one random scalar being invalid is <2^-32
     // The chance of two random scalars being invalid is <2^-64
@@ -1063,11 +1076,20 @@ sb_error_t sb_sw_generate_private_key(sb_sw_context_t ctx[static const 1],
     // Assume that it's OK to fail if both scalars generated are invalid.
 
     err |= sb_hmac_drbg_generate(drbg, &ctx->buf[0], SB_ELEM_BYTES);
+    SB_ASSERT(!err, "Private key generation should never fail.");
 
     err |= sb_hmac_drbg_generate(drbg, &ctx->buf[SB_ELEM_BYTES], SB_ELEM_BYTES);
+    SB_ASSERT(!err, "Private key generation should never fail.");
 
     sb_fe_from_bytes(MULT_K(ctx), &ctx->buf[0], e);
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[SB_ELEM_BYTES], e);
+
+    // per FIPS 186-4 B.4.2: d = c + 1
+    // if this overflows, the value was invalid to begin with
+    err |= SB_ERROR_IF(DRBG_FAILURE,
+                       sb_fe_add(MULT_K(ctx), MULT_K(ctx), &SB_FE_ONE));
+    err |= SB_ERROR_IF(DRBG_FAILURE,
+                       sb_fe_add(MULT_Z(ctx), MULT_Z(ctx), &SB_FE_ONE));
 
     _Bool k1v = sb_sw_scalar_valid(MULT_K(ctx), s);
     sb_fe_ctswap((sb_word_t) (k1v ^ 1), MULT_K(ctx), MULT_Z(ctx));
@@ -1088,21 +1110,27 @@ sb_error_t sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
                                     const sb_sw_curve_id_t curve,
                                     const sb_data_endian_t e)
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
     memset(ctx, 0, sizeof(sb_sw_context_t));
-    const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
-    if (!s) {
-        err |= SB_ERROR_CURVE_INVALID;
-    }
 
-    // Bail out early if the DRBG needs to be reseededarly
+    const sb_sw_curve_t* s;
+    err |= sb_sw_curve_from_id(&s, curve);
+
+    // Bail out early if the DRBG needs to be reseeded
     if (drbg != NULL) {
         err |= sb_hmac_drbg_reseed_required(drbg, 1);
     }
 
-    if (err) {
-        return err;
-    }
+    // Return invalid-curve and DRBG errors immediately.
+    SB_RETURN_ERRORS(err);
+
+    // Validate the private key before performing any operations.
+
+    sb_fe_from_bytes(MULT_K(ctx), private->bytes, e);
+    err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
+                       !sb_sw_scalar_valid(MULT_K(ctx), s));
+
+    SB_RETURN_ERRORS(err, ctx);
 
     // This is cheating: the private key isn't enough entropy to seed a
     // HMAC-DRBG with, so it's used as both entropy and nonce when no DRBG is
@@ -1116,16 +1144,15 @@ sb_error_t sb_sw_compute_public_key(sb_sw_context_t ctx[static const 1],
     err |= sb_sw_generate_z(ctx, drbg, s, private->bytes, SB_ELEM_BYTES,
                             private->bytes, SB_ELEM_BYTES, NULL, 0);
 
-    sb_fe_from_bytes(MULT_K(ctx), private->bytes, e);
-    err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
-                       !sb_sw_scalar_valid(MULT_K(ctx), s));
-
     sb_sw_point_mult(ctx, s->g_r, s);
 
-    // This should not occur with valid scalars.
+    // The output is quasi-reduced, so the point at infinity is (p, p).
+    // This should never occur with valid scalars.
     err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
                        (sb_fe_equal(C_X1(ctx), &s->p->p) &
                         sb_fe_equal(C_Y1(ctx), &s->p->p)));
+    SB_ASSERT(!err, "Montgomery ladder produced the point at infinity from a "
+        "valid scalar.");
 
     sb_fe_to_bytes(public->bytes, C_X1(ctx), e);
     sb_fe_to_bytes(public->bytes + SB_ELEM_BYTES, C_Y1(ctx), e);
@@ -1140,17 +1167,14 @@ sb_error_t sb_sw_valid_public_key(sb_sw_context_t ctx[static const 1],
                                   const sb_sw_curve_id_t curve,
                                   const sb_data_endian_t e)
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
-    const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
-    if (!s) {
-        err |= SB_ERROR_CURVE_INVALID;
-    }
 
-    if (err) {
-        return err;
-    }
+    const sb_sw_curve_t* s;
+    err |= sb_sw_curve_from_id(&s, curve);
+
+    SB_RETURN_ERRORS(err);
 
     sb_fe_from_bytes(&MULT_POINT(ctx)[0], public->bytes, e);
     sb_fe_from_bytes(&MULT_POINT(ctx)[1], public->bytes + SB_ELEM_BYTES, e);
@@ -1171,22 +1195,18 @@ sb_error_t sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
                                const sb_sw_curve_id_t curve,
                                const sb_data_endian_t e)
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
-    const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
-    if (!s) {
-        err |= SB_ERROR_CURVE_INVALID;
-    }
+    const sb_sw_curve_t* s;
+    err |= sb_sw_curve_from_id(&s, curve);
 
     // Bail out early if the DRBG needs to be reseeded
     if (drbg != NULL) {
         err |= sb_hmac_drbg_reseed_required(drbg, 1);
     }
 
-    if (err) {
-        return err;
-    }
+    SB_RETURN_ERRORS(err);
 
     // Only the X coordinate of the public key is used as the nonce, since
     // the Y coordinate is not an independent input.
@@ -1200,10 +1220,13 @@ sb_error_t sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
     sb_fe_from_bytes(&MULT_POINT(ctx)[1], public->bytes + SB_ELEM_BYTES, e);
 
     err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
-                       !sb_sw_scalar_valid(MULT_K(ctx),
-                                           sb_sw_curve_from_id(curve)));
+                       !sb_sw_scalar_valid(MULT_K(ctx), s));
     err |= SB_ERROR_IF(PUBLIC_KEY_INVALID,
                        !sb_sw_point_valid(MULT_POINT(ctx), ctx, s));
+
+    // Return errors here to prevent not-on-curve public keys from being used
+    // in a power side-channel attack.
+    SB_RETURN_ERRORS(err, ctx);
 
     // Pre-multiply the point's x and y by R
     sb_fe_mont_mult(C_X1(ctx), &MULT_POINT(ctx)[0], &s->p->r2_mod_p, s->p);
@@ -1217,6 +1240,8 @@ sb_error_t sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
     err |= SB_ERROR_IF(PRIVATE_KEY_INVALID,
                        (sb_fe_equal(C_X1(ctx), &s->p->p) &
                         sb_fe_equal(C_Y1(ctx), &s->p->p)));
+    SB_ASSERT(!err, "Montgomery ladder produced the point at infinity from a "
+        "valid scalar.");
 
     sb_fe_to_bytes(secret->bytes, C_X1(ctx), e);
 
@@ -1233,13 +1258,11 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
                                      const sb_sw_curve_id_t curve,
                                      const sb_data_endian_t e)
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
     memset(ctx, 0, sizeof(sb_sw_context_t));
 
-    const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
-    if (!s) {
-        err |= SB_ERROR_CURVE_INVALID;
-    }
+    const sb_sw_curve_t* s;
+    err |= sb_sw_curve_from_id(&s, curve);
 
     // Bail out early if the DRBG needs to be reseeded
     // It takes two calls to generate a per-message secret and one to
@@ -1248,9 +1271,7 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
         err |= sb_hmac_drbg_reseed_required(drbg, 3);
     }
 
-    if (err) {
-        return err;
-    }
+    SB_RETURN_ERRORS(err);
 
     sb_fe_from_bytes(SIGN_PRIVATE(ctx), private->bytes, e);
     sb_fe_from_bytes(SIGN_MESSAGE(ctx), message->bytes, e);
@@ -1295,6 +1316,7 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
         err |=
             sb_hmac_drbg_init(&ctx->drbg_state, &ctx->buf[0], SB_ELEM_BYTES,
                               &ctx->buf[SB_ELEM_BYTES], SB_ELEM_BYTES, NULL, 0);
+        SB_ASSERT(!err, "DRBG initialization should never fail.");
 
         err |= sb_hmac_drbg_generate(&ctx->drbg_state, &ctx->buf[0],
                                      SB_ELEM_BYTES);
@@ -1303,11 +1325,14 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
                                      SB_ELEM_BYTES);
     }
 
+    SB_ASSERT(!err, "The DRBG should never fail to generate a "
+        "per-message secret.");
+
     sb_fe_from_bytes(MULT_K(ctx), &ctx->buf[0], SB_DATA_ENDIAN_BIG);
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[SB_ELEM_BYTES], SB_DATA_ENDIAN_BIG);
 
     if (drbg) {
-        // per FIPS 186-4: k = c + 1
+        // per FIPS 186-4 B.5.2: k = c + 1
         // if this overflows, the value was invalid to begin with
         err |= SB_ERROR_IF(DRBG_FAILURE,
                            sb_fe_add(MULT_K(ctx), MULT_K(ctx), &SB_FE_ONE));
@@ -1328,6 +1353,8 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
     // And now generate an initial Z
     err |= sb_hmac_drbg_generate((drbg ? drbg : &ctx->drbg_state),
                                  &ctx->buf[0], SB_ELEM_BYTES);
+    SB_ASSERT(!err, "The DRBG should never fail to generate a Z value.");
+
     sb_fe_from_bytes(MULT_Z(ctx), &ctx->buf[0], SB_DATA_ENDIAN_BIG);
     err |= sb_sw_z_valid(MULT_Z(ctx), s);
 
@@ -1349,21 +1376,18 @@ sb_error_t sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
                                   const sb_sw_curve_id_t curve,
                                   const sb_data_endian_t e)
 {
-    sb_error_t err = 0;
+    sb_error_t err = SB_SUCCESS;
     memset(ctx, 0, sizeof(sb_sw_context_t));
-    const sb_sw_curve_t* const s = sb_sw_curve_from_id(curve);
-    if (!s) {
-        err |= SB_ERROR_CURVE_INVALID;
-    }
+
+    const sb_sw_curve_t* s;
+    err |= sb_sw_curve_from_id(&s, curve);
 
     // Bail out early if the DRBG needs to be reseeded
     if (drbg != NULL) {
         err |= sb_hmac_drbg_reseed_required(drbg, 1);
     }
 
-    if (err) {
-        return err;
-    }
+    SB_RETURN_ERRORS(err);
 
     // Only the X coordinate of the public key is used as input, since
     // the Y coordinate is not an independent input. When no DRBG is
@@ -1384,11 +1408,21 @@ sb_error_t sb_sw_verify_signature(sb_sw_context_t ctx[static const 1],
     err |= SB_ERROR_IF(PUBLIC_KEY_INVALID,
                        !sb_sw_point_valid(MULT_POINT(ctx), ctx, s));
 
+    // Return early if the public key is invalid. If an attacker can modify
+    // the public key so that it is invalid, they can presumably also replace
+    // the public key with a different, valid key. In the event that the
+    // public key is incorrect or corrupt, better to avoid computing anything
+    // on the signature at all.
+
+    SB_RETURN_ERRORS(err, ctx);
+
     err |= SB_ERROR_IF(SIGNATURE_INVALID, !sb_sw_verify(ctx, s));
 
     memset(ctx, 0, sizeof(sb_sw_context_t));
     return err;
 }
+
+//// End of public API; tests follow.
 
 #ifdef SB_TEST
 
@@ -1597,11 +1631,11 @@ _Bool sb_test_verify_invalid(void)
         SB_ERROR_SIGNATURE_INVALID);
 
     // This tests that verifying a signature with an invalid public key will
-    // fail with both error indications:
+    // fail with the correct indication:
     SB_TEST_ASSERT_ERROR(
         sb_sw_verify_signature(&ct, &TEST_SIG, &TEST_SIG, &TEST_MESSAGE,
                                NULL, SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG),
-        (SB_ERROR_SIGNATURE_INVALID | SB_ERROR_PUBLIC_KEY_INVALID));
+        SB_ERROR_PUBLIC_KEY_INVALID);
     return 1;
 }
 
@@ -1839,6 +1873,8 @@ _Bool sb_test_sw_early_errors(void)
     );
     drbg.reseed_counter = SB_HMAC_DRBG_RESEED_INTERVAL + 1;
 
+    // Test that calling functions with an invalid curve and a DRBG that must
+    // be reseeded fails with the correct error indications:
     sb_sw_context_t ct;
     sb_single_t s;
     sb_double_t d;
@@ -1868,6 +1904,23 @@ _Bool sb_test_sw_early_errors(void)
                                &drbg, SB_SW_CURVE_INVALID,
                                SB_DATA_ENDIAN_BIG),
         (SB_ERROR_CURVE_INVALID | SB_ERROR_RESEED_REQUIRED));
+
+    d = TEST_PUB_1;
+    d.bytes[0] ^= 1;
+
+    // Test that calling functions which accept a curve point fail with the
+    // correct error indications when the point is not on the curve:
+
+    SB_TEST_ASSERT_ERROR(
+        sb_sw_shared_secret(&ct, &s, &TEST_PRIV_1, &d, NULL,
+                            SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG),
+        SB_ERROR_PUBLIC_KEY_INVALID);
+
+    SB_TEST_ASSERT_ERROR(
+        sb_sw_verify_signature(&ct, &TEST_SIG, &d, &TEST_MESSAGE, NULL,
+                               SB_SW_CURVE_P256, SB_DATA_ENDIAN_BIG),
+        SB_ERROR_PUBLIC_KEY_INVALID);
+
     return 1;
 }
 
