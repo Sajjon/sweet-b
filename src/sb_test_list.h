@@ -18,9 +18,18 @@ SB_DEFINE_TEST(sha256_2);
 SB_DEFINE_TEST(sha256_3);
 SB_DEFINE_TEST(hmac_sha256);
 SB_DEFINE_TEST(hmac_drbg);
+
 SB_DEFINE_TEST(fe);
 SB_DEFINE_TEST(mont_mult);
 SB_DEFINE_TEST(mod_expt_p);
+
+SB_DEFINE_TEST(mont_point_mult);
+SB_DEFINE_TEST(mont_public_key);
+SB_DEFINE_TEST(mont_shared_secret);
+SB_DEFINE_TEST(mont_not_on_curve);
+SB_DEFINE_TEST(mont_invalid_points);
+SB_DEFINE_TEST(mont_early_errors);
+
 SB_DEFINE_TEST(sw_h);
 SB_DEFINE_TEST(exceptions);
 SB_DEFINE_TEST(sw_point_mult_add);
@@ -37,6 +46,8 @@ SB_DEFINE_TEST(sign_k256);
 SB_DEFINE_TEST(shared_secret_k256);
 
 // Long tests near the end
+SB_DEFINE_TEST(mont_iter);
+
 SB_DEFINE_TEST(sw_point_mult_add_rand);
 SB_DEFINE_TEST(sign_iter);
 SB_DEFINE_TEST(sign_iter_k256);

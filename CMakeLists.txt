@@ -30,16 +30,19 @@ include_directories(src)
 
 set(SB_PUBLIC_HEADERS
         src/sb_sw_lib.h
+        src/sb_mont_lib.h
         src/sb_fe.h
         src/sb_hmac_drbg.h
         src/sb_hmac_sha256.h
         src/sb_sha256.h
         src/sb_sw_context.h
+        src/sb_mont_context.h
         src/sb_types.h
         src/sb_error.h)
 
 set(SB_PRIVATE_HEADERS
         src/sb_sw_curves.h
+        src/sb_mont_curves.h
         src/sb_test.h
         src/sb_test_list.h)
 
@@ -52,7 +55,8 @@ set(SB_SOURCES
         src/sb_hmac_drbg.c
 
         src/sb_fe.c
-        src/sb_sw_lib.c)
+        src/sb_sw_lib.c
+        src/sb_mont_lib.c)
 
 set_property(SOURCE src/sb_test.c APPEND PROPERTY OBJECT_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/sb_test_list.h")

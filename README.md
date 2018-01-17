@@ -17,7 +17,7 @@
 [![Build Status](https://travis-ci.org/naniteproject/sweet-b.svg?branch=master)](https://travis-ci.org/naniteproject/sweet-b)
 
 Sweet B is a library which implements public key elliptic curve cryptography
-(ECC) using the NIST P-256 and SECG secp256k1 curves. Sweet B is:
+(ECC) using the NIST P-256, SECG secp256k1, and curve25519 curves. Sweet B is:
 
 * *Safe:* known attack vectors have been accounted for, design decisions have
   been documented, and the API has been designed to eliminate the possibility of
@@ -70,8 +70,8 @@ Sweet B provides mitigation for several classes of known faults and attacks:
   *randomized projective coordinates*, also called Z blinding. The special case
   of *zero value analysis* has been addressed by representing reduced integers
   modulo 𝑝 as integers within the range [1, 𝑝], ensuring that the points
-  (0, ±√𝐵 ∙ 𝑍³, 𝑍) do not cause observable multiplications by
-  low-Hamming-weight field elements.
+  (0, ±√𝐵 ∙ 𝑍³, 𝑍) on applicable curves do not cause observable multiplications
+  by low-Hamming-weight field elements.
 * _Safe-error analyses_ reveal secret information by causing hardware faults
   during cryptographic operations and observing whether the fault affects the
   output. Sweet B mitigates these attacks through the use of a regular
@@ -116,13 +116,23 @@ supporting multiple primes, and also makes Sweet B fast compared with other
 embeddable implementations in C. However, there are faster implementations of
 ECC if you have more working memory or more code storage available.
 
+Sweet B has been carefully designed to avoid side channel attacks, including
+timing and power analyses. All field operations and elliptic curve operations
+are designed to run in constant time, and projective coordinate randomization
+consistently used. All functions take an optional DRBG parameter, and you are
+strongly encouraged to supply a properly-seeded DRBG whenever possible to
+mitigate power-based side channel attacks.
+
 ## How do I get started with Sweet B?
 
-[`sb_sw_lib.h`](src/sb_sw_lib.h) is the main entry point for ECC operations. For
-hashing and random number generation, see [`sb_sha256.h`](src/sb_sha256.h) and
-[`sb_hmac_drbg.h`](src/sb_hmac_drbg.h). Each file contains a number of test
-cases; if you compile Sweet B with `-DSB_TEST`, you can run them using the main
-routine in [`sb_test.c`](src/sb_test.c).
+[`sb_sw_lib.h`](src/sb_sw_lib.h) is the main entry point for ECC operations on
+short Weierstrass curves (P-256 and secp256k1);
+[`sb_mont_lib.h`](src/sb_sw_mont_lib.h) is the main entry point for operations
+on Montgomery curves (curve25519). For hashing and random number generation, see
+[`sb_sha256.h`](src/sb_sha256.h) and [`sb_hmac_drbg.h`](src/sb_hmac_drbg.h).
+Each file contains a number of test cases; if you compile Sweet B with
+`-DSB_TEST`, you can run them using the main routine in
+[`sb_test.c`](src/sb_test.c).
 
 You can set the word size used in Sweet B with the `SB_MUL_SIZE` preprocessor
 macro. By default, this is set to 4, meaning that 32-bit multiplies producing
@@ -131,14 +141,17 @@ microcontrollers without full 64-bit multiply output (such as the Cortex-M0+),
 you should set this to 1 or 2. On 64-bit x86 systems, you may want to set the
 multiplication size to 8 to use 128-bit multiplication output.
 
-You can disable either of the curves Sweet B supports by setting the
-preprocessor defines `SB_SW_P256_SUPPORT` or `SB_SW_SECP256K1_SUPPORT` to 0.
-If you have a little more program memory available, you may want to set
-`SB_UNROLL` to a value between 1 and 3 (inclusive); on Cortex-M4, `SB_UNROLL=2`
-provides the best balance between size and speed. Sweet B will also attempt
-to detect ARM processors which support DSP extensions and use the `UMAAL`
-instruction for multiplication; see [`sb_fe.c`](src/sb_fe.c) if this
-autodetection does not work for you.
+You can disable either of the short Weierstrass curves Sweet B supports by
+setting the preprocessor defines `SB_SW_P256_SUPPORT` or
+`SB_SW_SECP256K1_SUPPORT` to 0. Montgomery and short Weierstrass curve support
+is independent, and you may choose to link in either or both of
+[`sb_sw_lib.c`](src/sb_sw_lib.c) or [`sb_mont_lib.c`](src/sb_mont_lib.c). If you
+have a little more program memory available, you may want to set `SB_UNROLL` to
+a value between 1 and 3 (inclusive); on Cortex-M4, `SB_UNROLL=2` provides the
+best balance between size and speed. Sweet B will also attempt to detect ARM
+processors which support DSP extensions and use the `UMAAL` instruction for
+multiplication; see [`sb_fe.c`](src/sb_fe.c) if this autodetection does not work
+for you.
 
 [CMake](https://cmake.org/) build support is provided; to use it, create a
 directory for your build, run `cmake` with the path to the Sweet B sources, and
@@ -278,3 +291,28 @@ Cryptographic Engineering, Vol. 5, 141 (2011)_.
 
 > Discusses the use of Montgomery multiplication with the P-256 field prime,
 > specifically due to its "Montgomery friendly" property.
+
+Peter Montgomery, [Speeding the Pollard and Elliptic Curve Methods of
+Factorization](https://www.williamstein.org/edu/124/misc/montgomery.pdf). In
+_Mathematics of Computation, Vol. 48, 171 (1987)_.
+
+> Introduces Montgomery curves of the form 𝐵𝑦² = 𝑥³ + 𝐴𝑥² + 𝑥, of which
+> curve25519 is an example, and gives formulas for their arithmetic.
+
+Craig Costello and Benjamin Smith, [Montgomery curves and their arithmetic: The
+case of large characteristic fields](https://eprint.iacr.org/2017/212.pdf). In
+_Journal of Cryptographic Engineering, 2017_.
+
+> A survey of Montgomery curves and a description of the doubling and addition
+> formulae used in Sweet B.
+
+Daniel Genkin, Luke Valenta, and Yuval Yarom. [May the Fourth Be With You: A
+Microarchitectural Side Channel Attack on Several Real-World Applications of
+Curve25519](https://eprint.iacr.org/2017/806.pdf). _ACM Conference on Computer
+and Communications Security (CCS) 2017_. Also presented as [Side channel
+attacks on implementations of
+Curve25519](https://www.youtube.com/watch?v=mcEHVvcqUzU) at _Real World Crypto
+2018_.
+
+> An example of what can go wrong with "safe" Montgomery curves when input
+> points are not validated.
