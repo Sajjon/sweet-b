@@ -299,10 +299,20 @@ sb_sw_point_mult(sb_sw_context_t m[static const 1],
     // 14MM + 18A per bit
     // c.f. Table 1 in Rivain 2011 showing 9M + 5S + 18A
 
+    sb_word_t swap = 0;
+
     for (size_t i = SB_FE_BITS - 1; i > 0; i--) {
         const sb_word_t b = sb_fe_test_bit(MULT_K(m), i);
 
-        // (x2, y2) = R0; (x1, y1) = R1
+        // if swap is 0: (x2, y2) = R0; (x1, y1) = R1
+        // if swap is 1: (x2, y2) = R1; (x1, y1) = R0
+
+        // swap iff bit is set:
+        // (x1, y1) = R_b; (x2, y2) = R_{1-b}
+        swap ^= b;
+        sb_fe_ctswap(swap, C_X1(m), C_X2(m));
+        sb_fe_ctswap(swap, C_Y1(m), C_Y2(m));
+        swap = b;
 
         // our scalar 'k' is a 257-bit integer
         // R0 = k[256..(i+1)] * P
@@ -310,10 +320,6 @@ sb_sw_point_mult(sb_sw_context_t m[static const 1],
         // R0 = k[256..256] * P = 1 * P
         // R1 = R0 + P = (k[256..(i+1)] + 1) * P
 
-        // swap iff bit is set:
-        sb_fe_ctswap(b, C_X1(m), C_X2(m));
-        sb_fe_ctswap(b, C_Y1(m), C_Y2(m));
-        // (x1, y1) = R_b; (x2, y2) = R_{1-b}
 
         // When k[i] is 0:
         // (x1, y1) = k[256..(i+1)] * P
@@ -345,13 +351,8 @@ sb_sw_point_mult(sb_sw_context_t m[static const 1],
         // (x1, y1) is (2 * k[256..(i+1)] + 2) * P = (k[256..i] + 1) * P
         // (x2, y2) is (2 * k[256..(i+1)] + 1 ) * P = k[256..i] * P
 
-        // swap to reverse the renaming and preserve the loop invariant
-
-        sb_fe_ctswap(b, C_X1(m), C_X2(m));
-        sb_fe_ctswap(b, C_Y1(m), C_Y2(m));
-
-        // R0 is k[256..i] * P
-        // R1 is (k[256..i] + 1) * P
+        // R_swap is k[256..i] * P
+        // R_!swap is (k[256..i] + 1) * P
     }
 
     const sb_word_t b = sb_fe_test_bit(MULT_K(m), 0);
@@ -359,8 +360,9 @@ sb_sw_point_mult(sb_sw_context_t m[static const 1],
     // (x1, y1) = R0; (x2, y2) = R1
 
     // swap iff bit is set:
-    sb_fe_ctswap(b, C_X1(m), C_X2(m));
-    sb_fe_ctswap(b, C_Y1(m), C_Y2(m));
+    swap ^= b;
+    sb_fe_ctswap(swap, C_X1(m), C_X2(m));
+    sb_fe_ctswap(swap, C_Y1(m), C_Y2(m));
 
     // (x1, y1) = R_b; (x2, y2) = R_{1-b}
 
