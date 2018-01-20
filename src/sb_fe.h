@@ -193,12 +193,12 @@ typedef struct sb_prime_field_t {
     sb_bitcount_t bits; // the number of bits in the prime
 } sb_prime_field_t;
 
-extern void sb_fe_from_bytes(sb_fe_t dest[static 1],
-                             const sb_byte_t src[static SB_ELEM_BYTES],
+extern void sb_fe_from_bytes(sb_fe_t dest[static restrict 1],
+                             const sb_byte_t src[static restrict SB_ELEM_BYTES],
                              sb_data_endian_t e);
 
-extern void sb_fe_to_bytes(sb_byte_t dest[static SB_ELEM_BYTES],
-                           const sb_fe_t src[static 1],
+extern void sb_fe_to_bytes(sb_byte_t dest[static restrict SB_ELEM_BYTES],
+                           const sb_fe_t src[static restrict 1],
                            sb_data_endian_t e);
 
 extern sb_word_t sb_fe_equal(const sb_fe_t left[static 1],
@@ -216,13 +216,15 @@ extern sb_word_t sb_fe_sub(sb_fe_t dest[static 1],
                            const sb_fe_t left[static 1],
                            const sb_fe_t right[static 1]);
 
-extern void sb_fe_qr(sb_fe_t dest[static 1], sb_word_t carry,
-                     const sb_prime_field_t p[static 1]);
+extern void sb_fe_qr(sb_fe_t dest[static restrict 1], sb_word_t carry,
+                     const sb_prime_field_t p[static restrict 1]);
 
 extern sb_word_t sb_fe_lt(const sb_fe_t left[static 1],
                           const sb_fe_t right[static 1]);
 
-extern void sb_fe_ctswap(sb_word_t a, sb_fe_t b[static 1], sb_fe_t c[static 1]);
+extern void sb_fe_ctswap(sb_word_t a,
+                         sb_fe_t b[static restrict 1],
+                         sb_fe_t c[static restrict 1]);
 
 extern void sb_fe_mod_sub(sb_fe_t dest[static 1],
                           const sb_fe_t left[static 1],
@@ -251,9 +253,9 @@ extern void sb_fe_mont_reduce(sb_fe_t dest[static restrict 1],
                               const sb_fe_t left[static 1],
                               const sb_prime_field_t p[static 1]);
 
-extern void sb_fe_mod_inv_r(sb_fe_t dest[static 1],
-                            sb_fe_t t2[static 1],
-                            sb_fe_t t3[static 1],
-                            const sb_prime_field_t p[static 1]);
+extern void sb_fe_mod_inv_r(sb_fe_t dest[static restrict 1],
+                            sb_fe_t t2[static restrict  1],
+                            sb_fe_t t3[static restrict  1],
+                            const sb_prime_field_t p[static restrict 1]);
 
 #endif

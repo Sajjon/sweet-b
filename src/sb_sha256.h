@@ -37,11 +37,11 @@ typedef struct sb_sha256_state_t {
 
 extern void sb_sha256_init(sb_sha256_state_t sha[static 1]);
 
-extern void sb_sha256_update(sb_sha256_state_t sha[static 1],
-                             const sb_byte_t* input,
+extern void sb_sha256_update(sb_sha256_state_t sha[static restrict 1],
+                             const sb_byte_t* restrict input,
                              size_t len);
 
-extern void sb_sha256_finish(sb_sha256_state_t sha[static 1],
-                             sb_byte_t output[static SB_SHA256_SIZE]);
+extern void sb_sha256_finish(sb_sha256_state_t sha[static restrict 1],
+                             sb_byte_t output[static restrict SB_SHA256_SIZE]);
 
 #endif

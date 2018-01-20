@@ -27,8 +27,8 @@ static void sb_hmac_sha256_key_pad(sb_hmac_sha256_state_t hmac[static const 1],
     }
 }
 
-void sb_hmac_sha256_init(sb_hmac_sha256_state_t hmac[static const 1],
-                         const sb_byte_t* const key,
+void sb_hmac_sha256_init(sb_hmac_sha256_state_t hmac[static const restrict 1],
+                         const sb_byte_t* const restrict key,
                          size_t const keylen)
 {
     memset(hmac, 0, sizeof(sb_hmac_sha256_state_t));
@@ -56,15 +56,16 @@ void sb_hmac_sha256_reinit(sb_hmac_sha256_state_t hmac[static const 1])
     sb_hmac_sha256_key_pad(hmac, ipad);
 }
 
-void sb_hmac_sha256_update(sb_hmac_sha256_state_t hmac[static const 1],
-                           const sb_byte_t* const input,
+void sb_hmac_sha256_update(sb_hmac_sha256_state_t hmac[static const restrict 1],
+                           const sb_byte_t* const restrict input,
                            const size_t len)
 {
     sb_sha256_update(&hmac->sha, input, len);
 }
 
-void sb_hmac_sha256_finish(sb_hmac_sha256_state_t hmac[static const 1],
-                           sb_byte_t output[static const SB_SHA256_SIZE])
+void sb_hmac_sha256_finish(sb_hmac_sha256_state_t hmac[static const restrict 1],
+                           sb_byte_t output[static const
+                           restrict SB_SHA256_SIZE])
 {
     // Use output to temporarily store the inner hash
     sb_sha256_finish(&hmac->sha, output);
@@ -113,15 +114,6 @@ void sb_hmac_sha256_finish_to_key(sb_hmac_sha256_state_t hmac[static const 1])
 
     // Reinitialize the HMAC state with the newly generated key
     sb_hmac_sha256_reinit(hmac);
-}
-
-void sb_hmac_sha256(sb_hmac_sha256_state_t* hmac, const sb_byte_t* key,
-                    size_t keylen, const sb_byte_t* input,
-                    size_t len, sb_byte_t output[static const SB_SHA256_SIZE])
-{
-    sb_hmac_sha256_init(hmac, key, keylen);
-    sb_hmac_sha256_update(hmac, input, len);
-    sb_hmac_sha256_finish(hmac, output);
 }
 
 #ifdef SB_TEST

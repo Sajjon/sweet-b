@@ -85,28 +85,31 @@ typedef struct sb_hmac_drbg_state_t {
     size_t reseed_counter;
 } sb_hmac_drbg_state_t;
 
-extern sb_error_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static 1],
-                                    const sb_byte_t* entropy,
-                                    size_t entropy_len,
-                                    const sb_byte_t* nonce,
-                                    size_t nonce_len,
-                                    const sb_byte_t* personalization,
-                                    size_t personalization_len);
+extern sb_error_t
+sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static restrict 1],
+                  const sb_byte_t* entropy,
+                  size_t entropy_len,
+                  const sb_byte_t* nonce,
+                  size_t nonce_len,
+                  const sb_byte_t* personalization,
+                  size_t personalization_len);
 
-extern sb_error_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static 1],
-                                      const sb_byte_t* entropy,
-                                      size_t entropy_len,
-                                      const sb_byte_t* additional,
-                                      size_t additional_len);
+extern sb_error_t
+sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static restrict 1],
+                    const sb_byte_t* entropy,
+                    size_t entropy_len,
+                    const sb_byte_t* additional,
+                    size_t additional_len);
 
 // Returns SB_HMAC_DRBG_ERR_RESEED_REQUIRED iff one of the next `count`
 // sb_hmac_drbg_generate calls will return SB_HMAC_DRBG_ERR_RESEED_REQUIRED
 extern sb_error_t sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
                                                drbg[static 1], size_t count);
 
-extern sb_error_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static 1],
-                                        sb_byte_t* output,
-                                        size_t output_len);
+extern sb_error_t
+sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static restrict 1],
+                      sb_byte_t* output,
+                      size_t output_len);
 
 // Generate with a vector of additional data, which can be supplied in up to
 // SB_HMAC_DRBG_ADD_VECTOR_LEN pointers. If any additional data is supplied,
@@ -116,7 +119,7 @@ extern sb_error_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static 1],
 
 // output must NOT alias any part of the additional data
 extern sb_error_t sb_hmac_drbg_generate_additional_vec
-    (sb_hmac_drbg_state_t drbg[static 1],
+    (sb_hmac_drbg_state_t drbg[static restrict 1],
      sb_byte_t* restrict output, size_t output_len,
      const sb_byte_t* const additional[static SB_HMAC_DRBG_ADD_VECTOR_LEN],
      const size_t additional_len[static SB_HMAC_DRBG_ADD_VECTOR_LEN]);

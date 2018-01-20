@@ -49,8 +49,8 @@
 
 // Convert an appropriately-sized set of bytes (src) into a field element
 // using the given endianness.
-void sb_fe_from_bytes(sb_fe_t dest[static const 1],
-                      const sb_byte_t src[static const SB_ELEM_BYTES],
+void sb_fe_from_bytes(sb_fe_t dest[static const restrict 1],
+                      const sb_byte_t src[static const restrict SB_ELEM_BYTES],
                       const sb_data_endian_t e)
 {
     sb_wordcount_t src_i = 0;
@@ -75,8 +75,8 @@ void sb_fe_from_bytes(sb_fe_t dest[static const 1],
 }
 
 // Convert a field element into bytes using the given endianness.
-void sb_fe_to_bytes(sb_byte_t dest[static const SB_ELEM_BYTES],
-                    const sb_fe_t src[static const 1],
+void sb_fe_to_bytes(sb_byte_t dest[static const restrict SB_ELEM_BYTES],
+                    const sb_fe_t src[static const restrict 1],
                     const sb_data_endian_t e)
 {
     sb_wordcount_t dest_i = 0;
@@ -100,7 +100,7 @@ void sb_fe_to_bytes(sb_byte_t dest[static const SB_ELEM_BYTES],
 }
 
 // Returns an all-0 or all-1 word given a boolean flag 0 or 1 (respectively)
-static inline sb_word_t sb_word_mask(sb_word_t a)
+static inline sb_word_t sb_word_mask(const sb_word_t a)
 {
     SB_ASSERT((a == 0 || a == 1), "word used for ctc must be 0 or 1");
     return (sb_word_t) -a;
@@ -108,7 +108,9 @@ static inline sb_word_t sb_word_mask(sb_word_t a)
 
 // Used to select one of b or c in constant time, depending on whether a is 0 or 1
 // ctc is an abbreviation for "constant time choice"
-static inline sb_word_t sb_ctc_word(sb_word_t a, sb_word_t b, sb_word_t c)
+static inline sb_word_t sb_ctc_word(const sb_word_t a,
+                                    const sb_word_t b,
+                                    const sb_word_t c)
 {
     return (sb_word_t) ((sb_word_mask(a) & (b ^ c)) ^ b);
 }
@@ -180,9 +182,9 @@ static void sb_fe_rshift(sb_fe_t a[static const 1], sb_bitcount_t bits)
 
 // Add the given field elements and store the result in dest, which MAY alias
 // left or right. The carry is returned.
-sb_word_t
-sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
-          const sb_fe_t right[static const 1])
+sb_word_t sb_fe_add(sb_fe_t dest[static const 1],
+                    const sb_fe_t left[static const 1],
+                    const sb_fe_t right[static const 1])
 {
     sb_word_t carry = 0;
 
@@ -240,9 +242,9 @@ sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
 
 #else
     SB_UNROLL_2(i, 0, {
-        sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) +
-                       (sb_dword_t) SB_FE_WORD(right, i) +
-                       (sb_dword_t) carry;
+        const sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) +
+                             (sb_dword_t) SB_FE_WORD(right, i) +
+                             (sb_dword_t) carry;
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         carry = (sb_word_t) (d >> SB_WORD_BITS);
     });
@@ -252,9 +254,9 @@ sb_fe_add(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
 
 // Subtract the given field elements and store the result in dest, which MAY
 // alias left or right. The borrow is returned.
-static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
-                                  const sb_fe_t left[static 1],
-                                  const sb_fe_t right[static 1],
+static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static const 1],
+                                  const sb_fe_t left[static const 1],
+                                  const sb_fe_t right[static const 1],
                                   sb_word_t borrow)
 {
 
@@ -334,9 +336,9 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
 
 #else
     SB_UNROLL_2(i, 0, {
-        sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
-                       ((sb_dword_t) SB_FE_WORD(right, i) +
-                        (sb_dword_t) borrow);
+        const sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
+                             ((sb_dword_t) SB_FE_WORD(right, i) +
+                              (sb_dword_t) borrow);
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
     });
@@ -345,9 +347,9 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static 1],
 }
 
 
-sb_word_t sb_fe_sub(sb_fe_t dest[static 1],
-                    const sb_fe_t left[static 1],
-                    const sb_fe_t right[static 1])
+sb_word_t sb_fe_sub(sb_fe_t dest[static const 1],
+                    const sb_fe_t left[static const 1],
+                    const sb_fe_t right[static const 1])
 {
     return sb_fe_sub_borrow(dest, left, right, 0);
 }
@@ -391,9 +393,9 @@ sb_word_t sb_fe_lt(const sb_fe_t left[static 1],
             "m" (*left), "m" (*right) : "cc");
 #else
     SB_UNROLL_3(i, 0, {
-        sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
-                       ((sb_dword_t) SB_FE_WORD(right, i) +
-                        (sb_dword_t) borrow);
+        const sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
+                             ((sb_dword_t) SB_FE_WORD(right, i) +
+                              (sb_dword_t) borrow);
         borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
     });
 #endif
@@ -418,8 +420,9 @@ sb_word_t sb_fe_lt(const sb_fe_t left[static 1],
 
 // This helper routine subtracts p if c is 1; the subtraction is done
 // unconditionally, and the result is only written if c is 1
-static void sb_fe_cond_sub_p(sb_fe_t dest[static 1], sb_word_t c,
-                             const sb_fe_t p[static 1])
+static void sb_fe_cond_sub_p(sb_fe_t dest[static const restrict 1],
+                             sb_word_t c,
+                             const sb_fe_t p[static const restrict 1])
 {
 #if SB_USE_ARM_ASM
 
@@ -506,9 +509,9 @@ static void sb_fe_cond_sub_p(sb_fe_t dest[static 1], sb_word_t c,
     sb_word_t borrow = 0;
 
     SB_UNROLL_2(i, 0, {
-        sb_dword_t d = (sb_dword_t) SB_FE_WORD(dest, i) -
-                       ((sb_dword_t) SB_FE_WORD(p, i) +
-                        (sb_dword_t) borrow);
+        const sb_dword_t d = (sb_dword_t) SB_FE_WORD(dest, i) -
+                             ((sb_dword_t) SB_FE_WORD(p, i) +
+                              (sb_dword_t) borrow);
         SB_FE_WORD(dest, i) = sb_ctc_word(c, SB_FE_WORD(dest, i),
                                           (sb_word_t) d);
         borrow = (sb_word_t) -(sb_word_t) (d >> SB_WORD_BITS);
@@ -518,8 +521,9 @@ static void sb_fe_cond_sub_p(sb_fe_t dest[static 1], sb_word_t c,
 
 // Quasi-reduce dest (with extra carry bit) by subtracting p iff dest is
 // greater than p
-void sb_fe_qr(sb_fe_t dest[static const 1], sb_word_t const carry,
-              const sb_prime_field_t p[static const 1])
+void sb_fe_qr(sb_fe_t dest[static const restrict 1],
+              sb_word_t const carry,
+              const sb_prime_field_t p[static const restrict 1])
 {
     sb_word_t b = sb_fe_lt(&p->p, dest);
     sb_fe_cond_sub_p(dest, carry | b, &p->p);
@@ -532,8 +536,9 @@ void sb_fe_qr(sb_fe_t dest[static const 1], sb_word_t const carry,
 // This helper adds 1 or (p + 1), depending on c. On ARM, this is done by
 // adding p then choosing to store either the original value or the result of
 // the addition, followed by a second pass to add 1.
-static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
-                               const sb_fe_t p[static 1])
+static void sb_fe_cond_add_p_1(sb_fe_t dest[static const restrict 1],
+                               sb_word_t c,
+                               const sb_fe_t p[static const restrict 1])
 {
 #if SB_USE_ARM_ASM
 
@@ -601,9 +606,9 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
     sb_word_t carry = 1;
 
     SB_UNROLL_2(i, 0, {
-        sb_dword_t d = (sb_dword_t) SB_FE_WORD(dest, i) +
-                       (sb_dword_t) sb_ctc_word(c, 0, SB_FE_WORD(p, i)) +
-                       (sb_dword_t) carry;
+        const sb_dword_t d = (sb_dword_t) SB_FE_WORD(dest, i) +
+                             (sb_dword_t) sb_ctc_word(c, 0, SB_FE_WORD(p, i)) +
+                             (sb_dword_t) carry;
         SB_FE_WORD(dest, i) = (sb_word_t) d;
         carry = (sb_word_t) (d >> SB_WORD_BITS);
     });
@@ -616,11 +621,12 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static 1], sb_word_t c,
 // 1 or (p + 1), which means that a result of all zeros is never written back
 // to memory.
 void
-sb_fe_mod_sub(sb_fe_t dest[static const 1], const sb_fe_t left[static const 1],
+sb_fe_mod_sub(sb_fe_t dest[static const 1],
+              const sb_fe_t left[static const 1],
               const sb_fe_t right[static const 1],
               const sb_prime_field_t p[static const 1])
 {
-    sb_word_t b = sb_fe_sub_borrow(dest, left, right, 1);
+    const sb_word_t b = sb_fe_sub_borrow(dest, left, right, 1);
     sb_fe_cond_add_p_1(dest, b, &p->p);
     SB_ASSERT(sb_fe_equal(dest, &p->p) || sb_fe_lt(dest, &p->p),
               "modular subtraction must always produce quasi-reduced output");
@@ -675,8 +681,8 @@ _Bool sb_test_fe(void)
 
 // This helper is the equivalent of a single ARM DSP instruction:
 // (h, l) = a * b + c + d
-static inline void sb_mult_add_add(sb_word_t h[static const 1],
-                                   sb_word_t l[static const 1],
+static inline void sb_mult_add_add(sb_word_t h[static const restrict 1],
+                                   sb_word_t l[static const restrict 1],
                                    const sb_word_t a,
                                    const sb_word_t b,
                                    const sb_word_t c,
@@ -696,8 +702,8 @@ static inline void sb_mult_add_add(sb_word_t h[static const 1],
 #endif
 }
 
-static inline void sb_add_carry_2(sb_word_t h[static const 1],
-                                  sb_word_t l[static const 1],
+static inline void sb_add_carry_2(sb_word_t h[static const restrict 1],
+                                  sb_word_t l[static const restrict 1],
                                   const sb_word_t a,
                                   const sb_word_t b,
                                   const sb_word_t c)
@@ -867,7 +873,7 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
             const sb_word_t A_j = (i == 0) ? 0 : SB_FE_WORD(A, j);
             // A = A + x_i * y
             sb_mult_add_add(&c, &SB_FE_WORD(A, j), x_i, SB_FE_WORD(y, j),
-                            A_j, c);
+            A_j, c);
         });
 
         // u_i = (a_0 + x_i y_0) m' mod b
@@ -972,8 +978,9 @@ _Bool sb_test_mont_mult(void)
 #endif
 
 // Swap `b` and `c if `a` is true using constant-time choice.
-void sb_fe_ctswap(const sb_word_t a, sb_fe_t b[static const 1],
-                  sb_fe_t c[static const 1])
+void sb_fe_ctswap(const sb_word_t a,
+                  sb_fe_t b[static const restrict 1],
+                  sb_fe_t c[static const restrict 1])
 {
     for (size_t i = 0; i < SB_FE_WORDS; i++) {
         const sb_word_t t = sb_ctc_word(a, SB_FE_WORD(b, i), SB_FE_WORD(c, i));
@@ -991,9 +998,11 @@ void sb_fe_ctswap(const sb_word_t a, sb_fe_t b[static const 1],
 // not with respect to the inputs.
 
 static void
-sb_fe_mod_expt_r(sb_fe_t x[static const 1], const sb_fe_t e[static const 1],
-                 sb_fe_t t2[static const 1], sb_fe_t t3[static const 1],
-                 const sb_prime_field_t p[static const 1])
+sb_fe_mod_expt_r(sb_fe_t x[static const restrict 1],
+                 const sb_fe_t e[static const restrict 1],
+                 sb_fe_t t2[static const restrict 1],
+                 sb_fe_t t3[static const restrict 1],
+                 const sb_prime_field_t p[static const restrict 1])
 {
     _Bool by = 0;
     *t2 = p->r_mod_p;
@@ -1017,9 +1026,10 @@ sb_fe_mod_expt_r(sb_fe_t x[static const 1], const sb_fe_t e[static const 1],
 }
 
 // See sb_prime_field_t in sb_fe.h for more comments on modular inversion.
-void sb_fe_mod_inv_r(sb_fe_t dest[static const 1], sb_fe_t t2[static const 1],
-                     sb_fe_t t3[static const 1],
-                     const sb_prime_field_t p[static const 1])
+void sb_fe_mod_inv_r(sb_fe_t dest[static const restrict 1],
+                     sb_fe_t t2[static const restrict 1],
+                     sb_fe_t t3[static const restrict 1],
+                     const sb_prime_field_t p[static const restrict 1])
 {
     sb_fe_mod_expt_r(dest, &p->p_minus_two_f1, t2, t3, p);
     sb_fe_mod_expt_r(dest, &p->p_minus_two_f2, t2, t3, p);

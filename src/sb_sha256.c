@@ -147,8 +147,8 @@ void sb_sha256_init(sb_sha256_state_t sha[static const 1])
 }
 
 // Process a buffer of an arbitrary number of bytes
-void sb_sha256_update(sb_sha256_state_t sha[static const 1],
-                      const sb_byte_t* input,
+void sb_sha256_update(sb_sha256_state_t sha[static const restrict 1],
+                      const sb_byte_t* restrict input,
                       size_t len)
 {
     while (len > 0) {
@@ -175,8 +175,8 @@ void sb_sha256_update(sb_sha256_state_t sha[static const 1],
 
 static const sb_byte_t sb_sha256_final_bit = 0x80;
 
-void sb_sha256_finish(sb_sha256_state_t sha[static const 1],
-                      sb_byte_t output[static const SB_SHA256_SIZE])
+void sb_sha256_finish(sb_sha256_state_t sha[static const restrict 1],
+                      sb_byte_t output[static const restrict SB_SHA256_SIZE])
 {
     // Annoyingly, the final SHA256 length needs to be in bits, not bytes.
     const uint64_t total_bits = sha->total_bytes << 3;

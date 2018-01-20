@@ -24,7 +24,7 @@ extern void sb_hmac_sha256_finish_to_key(sb_hmac_sha256_state_t hmac[static 1]);
 // K = HMAC(K, V || r || provided_data)
 // V = HMAC(K, V)
 static void sb_hmac_drbg_update_step
-    (sb_hmac_drbg_state_t drbg[static const 1],
+    (sb_hmac_drbg_state_t drbg[static const restrict 1],
      const sb_byte_t r[static const 1],
      const sb_byte_t* const provided[static const UPDATE_VECTORS],
      const size_t provided_len[static const UPDATE_VECTORS])
@@ -44,7 +44,7 @@ static void sb_hmac_drbg_update_step
 }
 
 static void sb_hmac_drbg_update_vec
-    (sb_hmac_drbg_state_t drbg[static const 1],
+    (sb_hmac_drbg_state_t drbg[static const restrict 1],
      const sb_byte_t* const provided[static const UPDATE_VECTORS],
      const size_t provided_len[static const UPDATE_VECTORS],
      _Bool any_provided)
@@ -56,7 +56,8 @@ static void sb_hmac_drbg_update_vec
     }
 }
 
-sb_error_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t drbg[static const 1],
+sb_error_t sb_hmac_drbg_reseed(sb_hmac_drbg_state_t
+                               drbg[static const restrict 1],
                                const sb_byte_t* const entropy,
                                const size_t entropy_len,
                                const sb_byte_t* const additional,
@@ -99,7 +100,7 @@ sb_error_t sb_hmac_drbg_reseed_required(sb_hmac_drbg_state_t const
     }
 }
 
-sb_error_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const 1],
+sb_error_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const restrict 1],
                              const sb_byte_t* const entropy,
                              size_t const entropy_len,
                              const sb_byte_t* const nonce,
@@ -147,7 +148,7 @@ sb_error_t sb_hmac_drbg_init(sb_hmac_drbg_state_t drbg[static const 1],
 }
 
 sb_error_t sb_hmac_drbg_generate_additional_vec
-    (sb_hmac_drbg_state_t drbg[static const 1],
+    (sb_hmac_drbg_state_t drbg[static const restrict 1],
      sb_byte_t* restrict output, size_t output_len,
      const sb_byte_t* const additional[static const SB_HMAC_DRBG_ADD_VECTOR_LEN],
      const size_t additional_len[static const SB_HMAC_DRBG_ADD_VECTOR_LEN])
@@ -199,7 +200,8 @@ sb_error_t sb_hmac_drbg_generate_additional_vec
     return SB_SUCCESS;
 }
 
-sb_error_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t drbg[static const 1],
+sb_error_t sb_hmac_drbg_generate(sb_hmac_drbg_state_t
+                                 drbg[static const restrict 1],
                                  sb_byte_t* const output,
                                  size_t const output_len)
 {
