@@ -41,7 +41,7 @@ typedef sb_double_t sb_sw_signature_t;
 #error "One of SB_SW_P256_SUPPORT or SB_SW_SECP256K1_SUPPORT must be enabled!"
 #endif
 
-typedef enum sb_sw_curve_id_t {
+typedef enum sb_sw_curve_id_value_t {
 #if SB_SW_P256_SUPPORT
     SB_SW_CURVE_P256 = 0,
 #endif
@@ -51,7 +51,9 @@ typedef enum sb_sw_curve_id_t {
 #ifdef SB_TEST
     SB_SW_CURVE_INVALID = 0x7FFFFFFF
 #endif
-} sb_sw_curve_id_t;
+} sb_sw_curve_id_value_t;
+
+typedef uint32_t sb_sw_curve_id_t;
 
 // see sb_types.h for the definition of sb_data_endian_t
 

@@ -256,12 +256,10 @@ sb_mont_decode_scalar(sb_fe_t* const dest, const sb_single_t* const k,
             sb_fe_set_bit(dest, 254, 1);
             break;
         }
-#ifdef SB_TEST
-        case SB_MONT_CURVE_INVALID: {
+        default: {
             SB_ASSERT(0, "Curve should have already been validated!");
             break;
         }
-#endif
     }
 }
 
@@ -277,12 +275,10 @@ sb_mont_decode_point(sb_fe_t* const dest, const sb_single_t* const u,
             sb_fe_set_bit(dest, 255, 0);
             break;
         }
-#ifdef SB_TEST
-        case SB_MONT_CURVE_INVALID: {
+        default: {
             SB_ASSERT(0, "Curve should have already been validated!");
             break;
         }
-#endif
     }
 }
 
@@ -294,14 +290,11 @@ static sb_error_t sb_mont_curve_from_id(const sb_mont_curve_t** const m,
             *m = &SB_CURVE_X25519;
             return 0;
         }
-#ifdef SB_TEST
-        case SB_MONT_CURVE_INVALID: {
-            break;
+        default: {
+            *m = NULL;
+            return SB_ERROR_CURVE_INVALID;
         }
-#endif
     }
-    *m = NULL;
-    return SB_ERROR_CURVE_INVALID;
 }
 
 static sb_error_t sb_mont_z_regularize(sb_fe_t z[static const 1],

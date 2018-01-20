@@ -30,10 +30,12 @@ typedef struct sb_double_t {
     sb_byte_t bytes[SB_ELEM_BYTES * 2];
 } sb_double_t;
 
-typedef enum sb_data_endian_t {
+typedef enum sb_data_endian_value_t {
     SB_DATA_ENDIAN_LITTLE = 0,
     SB_DATA_ENDIAN_BIG
-} sb_data_endian_t;
+} sb_data_endian_value_t;
+
+typedef uint32_t sb_data_endian_t;
 
 // Functions which return errors in Sweet B may return a bitwise-or of multiple
 // error values. For instance, when initializing a HMAC-DRBG instance, if the

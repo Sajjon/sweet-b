@@ -24,12 +24,14 @@ typedef sb_single_t sb_mont_shared_secret_t;
 
 // While only one curve is currently supported, in the future this may be
 // extended to explicitly allow using the quadratic twist of curve25519
-typedef enum sb_mont_curve_id_t {
+typedef enum sb_mont_curve_id_value_t {
     SB_MONT_CURVE_25519 = 0,
 #ifdef SB_TEST
     SB_MONT_CURVE_INVALID = 0x7FFFFFFF
 #endif
-} sb_mont_curve_id_t;
+} sb_mont_curve_id_value_t;
+
+typedef uint32_t sb_mont_curve_id_t;
 
 // All of the following methods take an initial parameter of type
 // sb_mont_context_t. You are responsible for allocating this context
