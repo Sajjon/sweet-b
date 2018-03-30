@@ -189,14 +189,6 @@ sb_word_t sb_fe_add(sb_fe_t dest[static const 1],
     sb_word_t carry = 0;
 
 #if SB_USE_ARM_ASM
-    // Literal register assingments are used here because the operands of
-    // ldrd need to be in sequential registers on non-Thumb-2 ARM.
-    // r4 is the first "variable register" in the ARM ABI.
-    register sb_word_t l_0 __asm("r4");
-    register sb_word_t l_1 __asm("r5");
-    register sb_word_t r_0 __asm("r6");
-    register sb_word_t r_1 __asm("r7");
-
     // ADD_ITER loads two words of left and two words of right, performs the
     // addition, and stores the result into dest. Stores are interleaved
     // with additions because on the Cortex-M4, there is a single-word
@@ -218,13 +210,15 @@ sb_word_t sb_fe_add(sb_fe_t dest[static const 1],
     // (carry, l_1) = l_1 + r_1 + carry
     // dest[i_1] = l_1
 
+    // l_0 is r4, l_1 is r5, r_0 is r6, r_1 is r7
+
 #define ADD_ITER(add_0, i_0, i_1) \
-          "ldrd %[l_0], %[l_1], [%[left], #" i_0 "]\n\t" \
-          "ldrd %[r_0], %[r_1], [%[right], #" i_0 "]\n\t" \
-          add_0 " %[l_0], %[l_0], %[r_0]\n\t" \
-          "str  %[l_0], [%[dest], #" i_0 "]\n\t" \
-          "adcs %[l_1], %[l_1], %[r_1]\n\t" \
-          "str  %[l_1], [%[dest], #" i_1 "]\n\t" \
+          "ldrd r4, r5, [%[left], #" i_0 "]\n\t" \
+          "ldrd r6, r7, [%[right], #" i_0 "]\n\t" \
+          add_0 " r4, r4, r6\n\t" \
+          "str  r4, [%[dest], #" i_0 "]\n\t" \
+          "adcs r5, r5, r7\n\t" \
+          "str  r5, [%[dest], #" i_1 "]\n\t" \
 
     __asm(ADD_ITER("adds", "0", "4")   // words 0 and 1
           ADD_ITER("adcs", "8", "12")  // words 2 and 3
@@ -233,12 +227,10 @@ sb_word_t sb_fe_add(sb_fe_t dest[static const 1],
 
           "adc  %[carry], %[carry], #0\n\t" // move C into carry
 
-          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
-            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
-            [carry] "+&r" (carry), "=m" (*dest)
+          : [carry] "+&r" (carry), "=m" (*dest)
           : [left] "r" (left), [right] "r" (right), [dest] "r" (dest),
             "m" (*left), "m" (*right)
-          : "cc");
+          : "r4", "r5", "r6", "r7", "cc");
 
 #else
     SB_UNROLL_2(i, 0, {
@@ -261,11 +253,6 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static const 1],
 {
 
 #if SB_USE_ARM_ASM
-    // See sb_fe_add for notes on register assignment.
-    register sb_word_t l_0 __asm("r4");
-    register sb_word_t l_1 __asm("r5");
-    register sb_word_t r_0 __asm("r6");
-    register sb_word_t r_1 __asm("r7");
 
     // SUB_ITER loads two words of left and two words of right and performs
     // the subtraction. The two arguments s_0 and s_1 are used for stores
@@ -289,17 +276,19 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static const 1],
     // (carry, l_1) = l_1 - (r_1 + !carry)
     // dest[i_1] = l_1
 
+    // l_0 is r4, l_1 is r5, r_0 is r6, r_1 is r7
+
 #define SUB_ITER(sub_0, s_0, s_1, i) \
-          "ldrd %[l_0], %[l_1], [%[left], # " i "]\n\t" \
-          "ldrd %[r_0], %[r_1], [%[right], # " i "]\n\t" \
-          sub_0 " %[l_0], %[l_0], %[r_0]\n\t" \
+          "ldrd r4, r5, [%[left], # " i "]\n\t" \
+          "ldrd r6, r7, [%[right], # " i "]\n\t" \
+          sub_0 " r4, r4, r6\n\t" \
           s_0 \
-          "sbcs %[l_1], %[l_1], %[r_1]\n\t" \
+          "sbcs r5, r5, r7\n\t" \
           s_1
 
 #define SUB_ITER_STORE(sub_0, i_0, i_1) \
-          SUB_ITER(sub_0, "str %[l_0], [%[dest], #" i_0 "]\n\t", \
-                          "str %[l_1], [%[dest], #" i_1 "]\n\t", i_0)
+          SUB_ITER(sub_0, "str r4, [%[dest], #" i_0 "]\n\t", \
+                          "str r5, [%[dest], #" i_1 "]\n\t", i_0)
 
 
           // SUB_SET_B sets the value of the register b based on the borrow
@@ -328,11 +317,9 @@ static sb_word_t sb_fe_sub_borrow(sb_fe_t dest[static const 1],
 
           SUB_SET_B
 
-          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
-            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
-            [b] "+&r" (borrow), "=m" (*dest)
+          : [b] "+&r" (borrow), "=m" (*dest)
           : [left] "r" (left), [right] "r" (right), [dest] "r" (dest),
-            "m" (*left), "m" (*right) : "cc");
+            "m" (*left), "m" (*right) : "r4", "r5", "r6", "r7", "cc");
 
 #else
     SB_UNROLL_2(i, 0, {
@@ -360,11 +347,6 @@ sb_word_t sb_fe_lt(const sb_fe_t left[static 1],
     sb_word_t borrow = 0;
 
 #if SB_USE_ARM_ASM
-    // See sb_fe_add for notes on register assignment.
-    register sb_word_t l_0 __asm("r4");
-    register sb_word_t l_1 __asm("r5");
-    register sb_word_t r_0 __asm("r6");
-    register sb_word_t r_1 __asm("r7");
 
     // See sb_fe_sub_borrow for the definition of SUB_ITER. The subtraction
     // here is used to compute the final borrow; no stores are performed.
@@ -386,11 +368,9 @@ sb_word_t sb_fe_lt(const sb_fe_t left[static 1],
           // see sb_fe_sub_borrow for notes on SUB_SET_B
           SUB_SET_B
 
-          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
-            [r_0] "=&r" (r_0),  [r_1] "=&r" (r_1),
-            [b] "+&r" (borrow)
+          : [b] "+&r" (borrow)
           : [left] "r" (left), [right] "r" (right),
-            "m" (*left), "m" (*right) : "cc");
+            "m" (*left), "m" (*right) : "r4", "r5", "r6", "r7", "cc");
 #else
     SB_UNROLL_3(i, 0, {
         const sb_dword_t d = (sb_dword_t) SB_FE_WORD(left, i) -
@@ -426,12 +406,6 @@ static void sb_fe_cond_sub_p(sb_fe_t dest[static const restrict 1],
 {
 #if SB_USE_ARM_ASM
 
-    // See sb_fe_add for notes on register assignment.
-    register sb_word_t l_0 __asm("r4");
-    register sb_word_t l_1 __asm("r5");
-    register sb_word_t r_0 __asm("r6");
-    register sb_word_t r_1 __asm("r7");
-
     c = sb_word_mask(c);
 
     // On ARM processors with the DSP extension, the SEL instruction is used
@@ -444,10 +418,10 @@ static void sb_fe_cond_sub_p(sb_fe_t dest[static const restrict 1],
 #if SB_USE_ARM_DSP_ASM
 
     // set GE bits by adding the condition to itself
-#define SB_COND_STORE_SET "uadd8 %[l_0], %[c], %[c]\n\t"
+#define SB_COND_STORE_SET "uadd8 r4, %[c], %[c]\n\t"
 
     // Selects r into l if-and-only-if c
-#define SB_COND_STORE_SEL(l, r, c) "sel %[" l "], %[" r "], %[" l "]\n\t"
+#define SB_COND_STORE_SEL(l, r, c) "sel " l ", " r ", " l "\n\t"
 
 #else
 
@@ -459,9 +433,9 @@ static void sb_fe_cond_sub_p(sb_fe_t dest[static const restrict 1],
     // --> l = l ^ ((l ^ r) & c)
     // --> l = l if not C, r if C
 #define SB_COND_STORE_SEL(l, r, c) \
-          "eor  %[" r "], %[" l "], %[" r "]\n\t" \
-          "and  %[" r "], %[" r "], %[" c "]\n\t" \
-          "eor  %[" l "], %[" l "], %[" r "]\n\t" \
+          "eor  " r ", " l ", " r "\n\t" \
+          "and  " r ", " r ", " c "\n\t" \
+          "eor  " l ", " l ", " r "\n\t" \
 
 #endif
 
@@ -482,15 +456,17 @@ static void sb_fe_cond_sub_p(sb_fe_t dest[static const restrict 1],
     // in constant time: if C then l_1 = r_1
     // dest[i_1] = l_1
 
+    // l_0 is r4, l_1 is r5, r_0 is r6, r_1 is r7
+
 #define SB_ITER_COND_STORE(ops, opcs, i_0, i_1) \
-          "ldrd  %[l_0], %[l_1], [%[dest], #" i_0 "]\n\t" \
-          "ldrd  %[r_0], %[r_1], [%[p], #" i_0 "]\n\t" \
-          ops  " %[r_0], %[l_0], %[r_0]\n\t" \
-          opcs " %[r_1], %[l_1], %[r_1]\n\t" \
-          SB_COND_STORE_SEL("l_0", "r_0", "c") \
-          "str   %[l_0], [%[dest], #" i_0 "]\n\t" \
-          SB_COND_STORE_SEL("l_1", "r_1", "c") \
-          "str   %[l_1], [%[dest], #" i_1 "]\n\t" \
+          "ldrd  r4, r5, [%[dest], #" i_0 "]\n\t" \
+          "ldrd  r6, r7, [%[p], #" i_0 "]\n\t" \
+          ops  " r6, r4, r6\n\t" \
+          opcs " r7, r5, r7\n\t" \
+          SB_COND_STORE_SEL("r4", "r6", "c") \
+          "str   r4, [%[dest], #" i_0 "]\n\t" \
+          SB_COND_STORE_SEL("r5", "r7", "c") \
+          "str   r5, [%[dest], #" i_1 "]\n\t" \
 
     __asm(SB_COND_STORE_SET
 
@@ -499,11 +475,9 @@ static void sb_fe_cond_sub_p(sb_fe_t dest[static const restrict 1],
           SB_ITER_COND_STORE("sbcs", "sbcs", "16", "20") // words 4 and 5
           SB_ITER_COND_STORE("sbcs", "sbcs", "24", "28") // words 6 and 7
 
-          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
-            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
-            "=m" (*dest)
+          : "=m" (*dest)
           : [dest] "r" (dest), [p] "r" (p), [c] "r" (c),
-            "m" (*dest), "m" (*p) : "cc");
+            "m" (*dest), "m" (*p) : "r4", "r5", "r6", "r7", "cc");
 
 #else
     sb_word_t borrow = 0;
@@ -542,12 +516,6 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static const restrict 1],
 {
 #if SB_USE_ARM_ASM
 
-    // See sb_fe_add for notes on register assignment.
-    register sb_word_t l_0 __asm("r4");
-    register sb_word_t l_1 __asm("r5");
-    register sb_word_t r_0 __asm("r6");
-    register sb_word_t r_1 __asm("r7");
-
     c = sb_word_mask(c);
 
     // ADD_1_ITER is used to add 1 to dest. See sb_fe_add for notes on store
@@ -562,12 +530,14 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static const restrict 1],
     // (carry, l_1) = l_1 + carry
     // dest[i_1] = l_1
 
+    // l_0 is r4, l_1 is r5
+
 #define ADD_1_ITER(add_0, add_0_v, i_0, i_1) \
-          "ldrd %[l_0], %[l_1], [%[dest], #" i_0 "]\n\t" \
-          add_0 " %[l_0], %[l_0], #" add_0_v "\n\t" \
-          "str  %[l_0], [%[dest], #" i_0 "]\n\t" \
-          "adcs %[l_1], %[l_1], #0\n\t" \
-          "str  %[l_1], [%[dest], #" i_1 "]\n\t"
+          "ldrd r4, r5, [%[dest], #" i_0 "]\n\t" \
+          add_0 " r4, r4, #" add_0_v "\n\t" \
+          "str  r4, [%[dest], #" i_0 "]\n\t" \
+          "adcs r5, r5, #0\n\t" \
+          "str  r5, [%[dest], #" i_1 "]\n\t"
 
     // Here SB_ITER_COND_STORE is used to add p.
 
@@ -596,11 +566,9 @@ static void sb_fe_cond_add_p_1(sb_fe_t dest[static const restrict 1],
           ADD_1_ITER("adcs", "0", "16", "20") // words 4 and 5
           ADD_1_ITER("adcs", "0", "24", "28") // words 6 and 7
 
-          : [l_0] "=&r" (l_0), [l_1] "=&r" (l_1),
-            [r_0] "=&r" (r_0), [r_1] "=&r" (r_1),
-            "=m" (*dest)
+          : "=m" (*dest)
           : [dest] "r" (dest), [p] "r" (p), [c] "r" (c),
-            "m" (*dest), "m" (*p) : "cc");
+            "m" (*dest), "m" (*p) : "r4", "r5", "r6", "r7", "cc");
 
 #else
     sb_word_t carry = 1;
@@ -729,11 +697,6 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
 
     sb_word_t hw, c, c2, x_i, u_i;
 
-    // See sb_fe_add for notes on register assignment.
-    register sb_word_t A_j_0 __asm("r4");
-    register sb_word_t A_j_1 __asm("r5");
-    register sb_word_t y_j_0 __asm("r6");
-    register sb_word_t y_j_1 __asm("r7");
 #if SB_UNROLL < 3
     sb_word_t i;
 #endif
@@ -765,27 +728,29 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
     // (c2, A_j_1) = u_i * y_j_1 + A_j_1 + c2
     // A[j] = A_j_1
 
+    // A_j_0 is r4, A_j_1 is r5, y_j_0 is r6, y_j_1 is r7
+
 #define MM_ITER_MUL(A_0, A_1, j, e, s_0, s_1) \
-        "ldrd  %[y_j_0], %[y_j_1], [%[y], #" j "]\n\t" \
+        "ldrd  r6, r7, [%[y], #" j "]\n\t" \
         A_0 \
-        "umaal %[A_j_0], %[c], %[x_i], %[y_j_0]\n\t" \
+        "umaal r4, %[c], %[x_i], r6\n\t" \
         A_1 \
-        "umaal %[A_j_1], %[c], %[x_i], %[y_j_1]\n\t" \
+        "umaal r5, %[c], %[x_i], r7\n\t" \
         e \
-        "ldrd  %[y_j_0], %[y_j_1], [%[p], #" j "]\n\t" \
-        "umaal %[A_j_0], %[c2], %[u_i], %[y_j_0]\n\t" \
+        "ldrd  r6, r7, [%[p], #" j "]\n\t" \
+        "umaal r4, %[c2], %[u_i], r6\n\t" \
         s_0 \
-        "umaal %[A_j_1], %[c2], %[u_i], %[y_j_1]\n\t" \
+        "umaal r5, %[c2], %[u_i], r7\n\t" \
         s_1
 
     // When i == 0, A is 0
 #define MM_ITER_1_I(j, e, s_0, s_1) \
-        MM_ITER_MUL("mov %[A_j_0], #0\n\t", "mov %[A_j_1], #0\n\t", \
+        MM_ITER_MUL("mov r4, #0\n\t", "mov r5, #0\n\t", \
                    j, e, s_0, s_1)
 
     // Otherwise, A must be loaded into A_j_0 and A_j_1
 #define MM_ITER_2_I(j, e, s_0, s_1) \
-        MM_ITER_MUL("ldrd %[A_j_0], %[A_j_1], [%[A], #" j "]\n\t", "", \
+        MM_ITER_MUL("ldrd r4, r5, [%[A], #" j "]\n\t", "", \
                     j, e, s_0, s_1)
 
     // Pseudocode for MM_ITER(i) where i is in byte offsets:
@@ -806,15 +771,15 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
     "mov   %[c], #0\n\t" \
     "mov   %[c2], #0\n\t" \
     "ldr   %[x_i], [%[x], " i "]\n\t" \
-    M("0", "mul %[u_i], %[A_j_0], %[hw]\n\t", "", "str %[A_j_1], [%[A]]\n\t") \
-    M("8", "", "str %[A_j_0], [%[A], #4]\n\t", \
-               "str %[A_j_1], [%[A], #8]\n\t") \
-    M("16", "", "str %[A_j_0], [%[A], #12]\n\t", \
-                "str %[A_j_1], [%[A], #16]\n\t") \
-    M("24", "", "str %[A_j_0], [%[A], #20]\n\t", \
-                "str %[A_j_1], [%[A], #24]\n\t") \
-    add "  %[A_j_0], %[c], %[c2]\n\t" \
-    "str   %[A_j_0], [%[A], #28]\n\t"
+    M("0", "mul %[u_i], r4, %[hw]\n\t", "", "str r5, [%[A]]\n\t") \
+    M("8", "", "str r4, [%[A], #4]\n\t", \
+               "str r5, [%[A], #8]\n\t") \
+    M("16", "", "str r4, [%[A], #12]\n\t", \
+                "str r5, [%[A], #16]\n\t") \
+    M("24", "", "str r4, [%[A], #20]\n\t", \
+                "str r5, [%[A], #24]\n\t") \
+    add "  r4, %[c], %[c2]\n\t" \
+    "str   r4, [%[A], #28]\n\t"
 
     // Pseudocode:
     // hw = p->mp
@@ -847,9 +812,7 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
     // move carry flag into hw: hw = 0; hw = hw + 0 + carry
     "mov %[hw], #0\n\t"
     "adc %[hw], %[hw], #0\n\t"
-    : [A_j_0] "=&r" (A_j_0), [A_j_1] "=&r" (A_j_1),
-      [y_j_0] "=&r" (y_j_0), [y_j_1] "=&r" (y_j_1),
-      [c] "=&r" (c), [c2] "=&r" (c2),
+    : [c] "=&r" (c), [c2] "=&r" (c2),
       [u_i] "=&r" (u_i), [hw] "=&r" (hw),
 #if SB_UNROLL < 3
       [i] "=&r" (i),
@@ -857,7 +820,7 @@ void sb_fe_mont_mult(sb_fe_t A[static const restrict 1],
       [x_i] "=&r" (x_i), "=m" (*A)
     : [A] "r" (A), [y] "r" (y), [p] "r" (p), [x] "r" (x),
       "m" (*x), "m" (*y), "m" (*p) :
-      "cc");
+    "r4", "r5", "r6", "r7", "cc");
 
 #else
 
