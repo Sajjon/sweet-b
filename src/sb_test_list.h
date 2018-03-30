@@ -54,4 +54,17 @@ SB_DEFINE_TEST(sign_iter_k256);
 SB_DEFINE_TEST(shared_iter);
 SB_DEFINE_TEST(shared_iter_k256);
 
+// NIST CAVP tests
+SB_DEFINE_TEST(nist_ecdh_shared_secret_p256);
+SB_DEFINE_TEST(nist_signatures_p256_sha1);
+SB_DEFINE_TEST(nist_signatures_p256_sha224);
+SB_DEFINE_TEST(nist_signatures_p256_sha256);
+SB_DEFINE_TEST(nist_signatures_p256_sha384);
+SB_DEFINE_TEST(nist_signatures_p256_sha512);
+SB_DEFINE_TEST(nist_hmac_sha256);
+SB_DEFINE_TEST(nist_sha256_small);
+SB_DEFINE_TEST(nist_sha256_long);
+SB_DEFINE_TEST(nist_sha256_monte);
+SB_DEFINE_TEST(nist_hmac_drbg_sha256);
+
 #endif

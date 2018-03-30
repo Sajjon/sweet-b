@@ -45,4 +45,5 @@ before_script:
 
 script:
   - make
-  - ./sb_test
+  - cd ..
+  - ./cmake-build-debug/sb_test

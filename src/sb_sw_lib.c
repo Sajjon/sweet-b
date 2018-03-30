@@ -1252,6 +1252,26 @@ sb_error_t sb_sw_shared_secret(sb_sw_context_t ctx[static const 1],
     return err;
 }
 
+#ifdef SB_TEST
+
+// This is an EXTREMELY dangerous method and is not exposed in the public
+// header. Do not under any circumstances call this function unless you are
+// running NIST CAVP tests.
+
+// Prototype to satisfy the compiler...
+
+sb_error_t sb_sw_sign_message_digest_with_k_beware_of_the_leopard
+    (sb_sw_context_t ctx[static 1],
+     sb_sw_signature_t signature[static 1],
+     const sb_sw_private_t private[static 1],
+     const sb_sw_message_digest_t message[static 1],
+     const sb_sw_private_t* k,
+     sb_hmac_drbg_state_t* drbg,
+     sb_sw_curve_id_t curve,
+     sb_data_endian_t e);
+
+#endif
+
 sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
                                      sb_sw_signature_t signature[static const 1],
                                      const sb_sw_private_t private[static const 1],
@@ -1259,6 +1279,22 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
                                      sb_hmac_drbg_state_t* const drbg,
                                      const sb_sw_curve_id_t curve,
                                      const sb_data_endian_t e)
+#ifdef SB_TEST
+{
+    return sb_sw_sign_message_digest_with_k_beware_of_the_leopard
+        (ctx, signature, private, message, NULL, drbg, curve, e);
+}
+
+sb_error_t sb_sw_sign_message_digest_with_k_beware_of_the_leopard
+    (sb_sw_context_t ctx[static const 1],
+     sb_sw_signature_t signature[static const 1],
+     const sb_sw_private_t private[static const 1],
+     const sb_sw_message_digest_t message[static const 1],
+     const sb_sw_private_t* const k,
+     sb_hmac_drbg_state_t* const drbg,
+     const sb_sw_curve_id_t curve,
+     const sb_data_endian_t e)
+#endif
 {
     sb_error_t err = SB_SUCCESS;
     memset(ctx, 0, sizeof(sb_sw_context_t));
@@ -1284,6 +1320,12 @@ sb_error_t sb_sw_sign_message_digest(sb_sw_context_t ctx[static const 1],
     // Reduce the message modulo N
     sb_fe_mod_sub(SIGN_MESSAGE(ctx), SIGN_MESSAGE(ctx), &s->n->p, s->n);
 
+#ifdef SB_TEST
+    // Inject the provided per-message secret
+    if (k) {
+        memcpy(ctx->buf, k, SB_ELEM_BYTES);
+    } else
+#endif
     if (drbg) {
         // FIPS 186-4-style per-message secret generation
         // The private key and message are used (in native endianness) as

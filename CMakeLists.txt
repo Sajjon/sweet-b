@@ -23,7 +23,7 @@ if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything -Wno-padded")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=undefined -fsanitize=address")
 endif()
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -pedantic -Wextra")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_POSIX_C_SOURCE=200112L -Wall -pedantic -Wextra")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Werror")
 
 include_directories(src)
@@ -61,7 +61,7 @@ set(SB_SOURCES
 set_property(SOURCE src/sb_test.c APPEND PROPERTY OBJECT_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/sb_test_list.h")
 
-add_executable(sb_test ${SB_SOURCES} src/sb_test.c)
+add_executable(sb_test ${SB_SOURCES} src/sb_test.c src/sb_test_cavp.c)
 
 # 16x16->32 operations are most likely to accidentally trigger UB if there is
 # a missing cast from implicitly promoted int to uint32_t
