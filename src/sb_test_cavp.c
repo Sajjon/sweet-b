@@ -256,7 +256,7 @@ static _Bool
 sb_test_nist_ecdh_shared_secret(sb_sw_curve_id_t curve, const char* name)
 {
     FILE* tests = NULL;
-    size_t count, i = 0;
+    size_t count = 0, i = 0;
 
     sb_test_buf_t x = sb_test_buf_init, y = sb_test_buf_init;
 
@@ -413,7 +413,7 @@ static _Bool sb_test_nist_signatures(sb_sw_curve_id_t curve, const char* name)
 static _Bool sb_test_nist_hmac(const char* name)
 {
     FILE* tests = NULL;
-    size_t count, klen, tlen, i = 0;
+    size_t count = 0, klen, tlen, i = 0;
 
     sb_test_buf_t key = sb_test_buf_init;
     sb_test_buf_t message = sb_test_buf_init;
@@ -509,7 +509,7 @@ static _Bool sb_test_nist_sha256_file(const char* file)
 static _Bool sb_test_nist_sha256_file_monte(const char* file)
 {
     FILE* tests = NULL;
-    size_t count, i = 0;
+    size_t count = 0, i = 0;
 
     sb_test_buf_t seed = sb_test_buf_init;
     sb_test_buf_t hash = sb_test_buf_init;
