@@ -69,7 +69,9 @@ add_executable(sb_test ${SB_SOURCES} src/sb_test.c src/sb_test_cavp.c)
 # If you update the SB_HMAC_DRBG options here to make unit tests pass, you
 # must also update the checks in sb_hmac_drbg.h
 
-target_compile_definitions(sb_test PRIVATE SB_TEST SB_MUL_SIZE=2
+set(SB_MUL_SIZE "2" CACHE STRING "")
+
+target_compile_definitions(sb_test PRIVATE SB_TEST SB_MUL_SIZE=${SB_MUL_SIZE}
         SB_DEBUG_ASSERTS
         SB_UNROLL=3
         SB_HMAC_DRBG_RESEED_INTERVAL=8
